@@ -701,7 +701,7 @@ static inline bool over_bground_thresh(struct backing_dev_info *bdi)
 static void wb_update_bandwidth(struct bdi_writeback *wb,
 				unsigned long start_time)
 {
-	__bdi_update_bandwidth(wb->bdi, start_time);
+	__bdi_update_bandwidth(wb->bdi, 0, 0, 0, 0, start_time);
 }
 
 /*
