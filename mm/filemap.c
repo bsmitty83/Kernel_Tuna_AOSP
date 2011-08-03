@@ -704,9 +704,12 @@ repeat:
 		page = radix_tree_deref_slot(pagep);
 		if (unlikely(!page))
 			goto out;
-		if (radix_tree_deref_retry(page))
+		if (radix_tree_exception(page)) {
+			if (radix_tree_exceptional_entry(page))
+				goto out;
+			/* radix_tree_deref_retry(page) */
 			goto repeat;
-
+		}
 		if (!page_cache_get_speculative(page))
 			goto repeat;
 
@@ -743,7 +746,7 @@ struct page *find_lock_page(struct address_space *mapping, pgoff_t offset)
 
 repeat:
 	page = find_get_page(mapping, offset);
-	if (page) {
+	if (page && !radix_tree_exception(page)) {
 		lock_page(page);
 		/* Has the page been truncated? */
 		if (unlikely(page->mapping != mapping)) {
@@ -839,11 +842,14 @@ repeat:
 		if (unlikely(!page))
 			continue;
 
-		/*
-		 * This can only trigger when the entry at index 0 moves out
-		 * of or back to the root: none yet gotten, safe to restart.
-		 */
-		if (radix_tree_deref_retry(page)) {
+		if (radix_tree_exception(page)) {
+			if (radix_tree_exceptional_entry(page))
+				continue;
+			/*
+			 * radix_tree_deref_retry(page):
+			 * can only trigger when entry at index 0 moves out of
+			 * or back to root: none yet gotten, safe to restart.
+			 */
 			WARN_ON(start | i);
 			goto restart;
 		}
@@ -902,12 +908,16 @@ repeat:
 		if (unlikely(!page))
 			continue;
 
-		/*
-		 * This can only trigger when the entry at index 0 moves out
-		 * of or back to the root: none yet gotten, safe to restart.
-		 */
-		if (radix_tree_deref_retry(page))
+		if (radix_tree_exception(page)) {
+			if (radix_tree_exceptional_entry(page))
+				break;
+			/*
+			 * radix_tree_deref_retry(page):
+			 * can only trigger when entry at index 0 moves out of
+			 * or back to root: none yet gotten, safe to restart.
+			 */
 			goto restart;
+		}
 
 		if (!page_cache_get_speculative(page))
 			goto repeat;
@@ -967,12 +977,15 @@ repeat:
 		if (unlikely(!page))
 			continue;
 
-		/*
-		 * This can only trigger when the entry at index 0 moves out
-		 * of or back to the root: none yet gotten, safe to restart.
-		 */
-		if (radix_tree_deref_retry(page))
+		if (radix_tree_exception(page)) {
+			BUG_ON(radix_tree_exceptional_entry(page));
+			/*
+			 * radix_tree_deref_retry(page):
+			 * can only trigger when entry at index 0 moves out of
+			 * or back to root: none yet gotten, safe to restart.
+			 */
 			goto restart;
+		}
 
 		if (!page_cache_get_speculative(page))
 			goto repeat;
