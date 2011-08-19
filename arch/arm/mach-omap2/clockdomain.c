@@ -798,6 +798,7 @@ void clkdm_deny_idle(struct clockdomain *clkdm)
 		 clkdm->name);
 
 	arch_clkdm->clkdm_deny_idle(clkdm);
+	pwrdm_state_switch(clkdm->pwrdm.ptr);
 }
 
 /**
