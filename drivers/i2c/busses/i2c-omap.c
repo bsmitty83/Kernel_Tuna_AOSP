@@ -41,7 +41,7 @@
 #include <linux/hwspinlock.h>
 #include <linux/i2c-omap.h>
 #include <linux/pm_runtime.h>
-#include <linux/pm_qos_params.h>
+#include <linux/pm_qos.h>
 
 #ifdef CONFIG_OMAP4_DPLL_CASCADING
 #include <linux/notifier.h>

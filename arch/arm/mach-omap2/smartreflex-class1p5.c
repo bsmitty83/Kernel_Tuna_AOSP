@@ -26,7 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/opp.h>
-#include <linux/pm_qos_params.h>
+#include <linux/pm_qos.h>
 
 #include "smartreflex.h"
 #include "voltage.h"
