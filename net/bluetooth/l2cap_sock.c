@@ -357,7 +357,7 @@ static int l2cap_sock_getsockopt_old(struct socket *sock, int optname, char __us
 			break;
 		}
 
-		if (chan->role_switch)
+		if (test_bit(FLAG_ROLE_SWITCH, &chan->flags))
 			opt |= L2CAP_LM_MASTER;
 
 		if (test_bit(FLAG_FORCE_RELIABLE, &chan->flags))
@@ -550,7 +550,10 @@ static int l2cap_sock_setsockopt_old(struct socket *sock, int optname, char __us
 		if (opt & L2CAP_LM_SECURE)
 			chan->sec_level = BT_SECURITY_HIGH;
 
-		chan->role_switch    = (opt & L2CAP_LM_MASTER);
+		if (opt & L2CAP_LM_MASTER)
+			set_bit(FLAG_ROLE_SWITCH, &chan->flags);
+		else
+			clear_bit(FLAG_ROLE_SWITCH, &chan->flags);
 
 		if (opt & L2CAP_LM_RELIABLE)
 			set_bit(FLAG_FORCE_RELIABLE, &chan->flags);
@@ -942,7 +945,6 @@ static void l2cap_sock_init(struct sock *sk, struct sock *parent)
 		chan->max_tx = pchan->max_tx;
 		chan->tx_win = pchan->tx_win;
 		chan->sec_level = pchan->sec_level;
-		chan->role_switch = pchan->role_switch;
 		chan->flags = pchan->flags;
 	} else {
 
@@ -971,7 +973,6 @@ static void l2cap_sock_init(struct sock *sk, struct sock *parent)
 		chan->fcs  = L2CAP_FCS_CRC16;
 		chan->tx_win = L2CAP_DEFAULT_TX_WINDOW;
 		chan->sec_level = BT_SECURITY_LOW;
-		chan->role_switch = 0;
 		chan->flags = 0;
 		set_bit(FLAG_FORCE_ACTIVE, &chan->flags);
 	}
