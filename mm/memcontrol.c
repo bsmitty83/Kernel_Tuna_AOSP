@@ -725,8 +725,8 @@ static bool __memcg_event_check(struct mem_cgroup *memcg, int target)
 {
 	unsigned long val, next;
 
-	val = this_cpu_read(memcg->stat->events[MEM_CGROUP_EVENTS_COUNT]);
-	next = this_cpu_read(memcg->stat->targets[target]);
+	val = __this_cpu_read(memcg->stat->events[MEM_CGROUP_EVENTS_COUNT]);
+	next = __this_cpu_read(memcg->stat->targets[target]);
 	/* from time_after() in jiffies.h */
 	return ((long)next - (long)val < 0);
 }
@@ -735,7 +735,7 @@ static void __mem_cgroup_target_update(struct mem_cgroup *memcg, int target)
 {
 	unsigned long val, next;
 
-	val = this_cpu_read(memcg->stat->events[MEM_CGROUP_EVENTS_COUNT]);
+	val = __this_cpu_read(memcg->stat->events[MEM_CGROUP_EVENTS_COUNT]);
 
 	switch (target) {
 	case MEM_CGROUP_TARGET_THRESH:
@@ -751,7 +751,7 @@ static void __mem_cgroup_target_update(struct mem_cgroup *memcg, int target)
 		return;
 	}
 
-	this_cpu_write(memcg->stat->targets[target], next);
+	__this_cpu_write(memcg->stat->targets[target], next);
 }
 
 /*
@@ -760,6 +760,7 @@ static void __mem_cgroup_target_update(struct mem_cgroup *memcg, int target)
  */
 static void memcg_check_events(struct mem_cgroup *memcg, struct page *page)
 {
+	preempt_disable();
 	/* threshold event is triggered in finer grain than soft limit */
 	if (unlikely(__memcg_event_check(memcg, MEM_CGROUP_TARGET_THRESH))) {
 		mem_cgroup_threshold(memcg);
@@ -779,6 +780,7 @@ static void memcg_check_events(struct mem_cgroup *memcg, struct page *page)
 		}
 #endif
 	}
+	preempt_enable();
 }
 
 struct mem_cgroup *mem_cgroup_from_cont(struct cgroup *cont)
