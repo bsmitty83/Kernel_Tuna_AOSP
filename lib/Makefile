@@ -128,6 +128,8 @@ obj-$(CONFIG_LLIST) += llist.o
 
 obj-$(CONFIG_CORDIC) += cordic.o
 
+obj-$(CONFIG_DQL) += dynamic_queue_limits.o
+
 hostprogs-y	:= gen_crc32table
 clean-files	:= crc32table.h
 
