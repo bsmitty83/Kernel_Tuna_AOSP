@@ -90,6 +90,7 @@ extern struct mem_cgroup *parent_mem_cgroup(struct mem_cgroup *mem);
 extern struct mem_cgroup *mem_cgroup_from_cont(struct cgroup *cont);
 
 extern struct mem_cgroup *parent_mem_cgroup(struct mem_cgroup *memcg);
+extern struct mem_cgroup *mem_cgroup_from_cont(struct cgroup *cont);
 
 static inline
 int mm_match_cgroup(const struct mm_struct *mm, const struct mem_cgroup *cgroup)
