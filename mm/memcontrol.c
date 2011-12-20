@@ -5204,7 +5204,6 @@ mem_cgroup_create(struct cgroup_subsys *ss, struct cgroup *cont)
 	return &memcg->css;
 free_out:
 	__mem_cgroup_free(memcg);
-	root_mem_cgroup = NULL;
 	return ERR_PTR(error);
 }
 
