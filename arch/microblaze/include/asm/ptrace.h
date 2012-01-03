@@ -61,7 +61,14 @@ struct pt_regs {
 #define instruction_pointer(regs)	((regs)->pc)
 #define profile_pc(regs)		instruction_pointer(regs)
 
+<<<<<<< HEAD
 void show_regs(struct pt_regs *);
+=======
+static inline long regs_return_value(struct pt_regs *regs)
+{
+	return regs->r3;
+}
+>>>>>>> d7e7528... Audit: push audit success and retcode into arch ptrace.h
 
 #else /* __KERNEL__ */
 
