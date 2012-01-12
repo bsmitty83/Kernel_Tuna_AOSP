@@ -234,12 +234,138 @@ __setup("nocleancache", no_cleancache);
 static struct cleancache_ops tmem_cleancache_ops = {
 	.put_page = tmem_cleancache_put_page,
 	.get_page = tmem_cleancache_get_page,
-	.flush_page = tmem_cleancache_flush_page,
-	.flush_inode = tmem_cleancache_flush_inode,
-	.flush_fs = tmem_cleancache_flush_fs,
+	.invalidate_page = tmem_cleancache_flush_page,
+	.invalidate_inode = tmem_cleancache_flush_inode,
+	.invalidate_fs = tmem_cleancache_flush_fs,
 	.init_shared_fs = tmem_cleancache_init_shared_fs,
 	.init_fs = tmem_cleancache_init_fs
 };
+#endif
+
+#ifdef CONFIG_FRONTSWAP
+/* frontswap tmem operations */
+
+/* a single tmem poolid is used for all frontswap "types" (swapfiles) */
+static int tmem_frontswap_poolid;
+
+/*
+ * Swizzling increases objects per swaptype, increasing tmem concurrency
+ * for heavy swaploads.  Later, larger nr_cpus -> larger SWIZ_BITS
+ */
+#define SWIZ_BITS		4
+#define SWIZ_MASK		((1 << SWIZ_BITS) - 1)
+#define _oswiz(_type, _ind)	((_type << SWIZ_BITS) | (_ind & SWIZ_MASK))
+#define iswiz(_ind)		(_ind >> SWIZ_BITS)
+
+static inline struct tmem_oid oswiz(unsigned type, u32 ind)
+{
+	struct tmem_oid oid = { .oid = { 0 } };
+	oid.oid[0] = _oswiz(type, ind);
+	return oid;
+}
+
+/* returns 0 if the page was successfully put into frontswap, -1 if not */
+static int tmem_frontswap_put_page(unsigned type, pgoff_t offset,
+				   struct page *page)
+{
+	u64 ind64 = (u64)offset;
+	u32 ind = (u32)offset;
+	unsigned long pfn = page_to_pfn(page);
+	int pool = tmem_frontswap_poolid;
+	int ret;
+
+	if (pool < 0)
+		return -1;
+	if (ind64 != ind)
+		return -1;
+	mb(); /* ensure page is quiescent; tmem may address it with an alias */
+	ret = xen_tmem_put_page(pool, oswiz(type, ind), iswiz(ind), pfn);
+	/* translate Xen tmem return values to linux semantics */
+	if (ret == 1)
+		return 0;
+	else
+		return -1;
+}
+
+/*
+ * returns 0 if the page was successfully gotten from frontswap, -1 if
+ * was not present (should never happen!)
+ */
+static int tmem_frontswap_get_page(unsigned type, pgoff_t offset,
+				   struct page *page)
+{
+	u64 ind64 = (u64)offset;
+	u32 ind = (u32)offset;
+	unsigned long pfn = page_to_pfn(page);
+	int pool = tmem_frontswap_poolid;
+	int ret;
+
+	if (pool < 0)
+		return -1;
+	if (ind64 != ind)
+		return -1;
+	ret = xen_tmem_get_page(pool, oswiz(type, ind), iswiz(ind), pfn);
+	/* translate Xen tmem return values to linux semantics */
+	if (ret == 1)
+		return 0;
+	else
+		return -1;
+}
+
+/* flush a single page from frontswap */
+static void tmem_frontswap_flush_page(unsigned type, pgoff_t offset)
+{
+	u64 ind64 = (u64)offset;
+	u32 ind = (u32)offset;
+	int pool = tmem_frontswap_poolid;
+
+	if (pool < 0)
+		return;
+	if (ind64 != ind)
+		return;
+	(void) xen_tmem_flush_page(pool, oswiz(type, ind), iswiz(ind));
+}
+
+/* flush all pages from the passed swaptype */
+static void tmem_frontswap_flush_area(unsigned type)
+{
+	int pool = tmem_frontswap_poolid;
+	int ind;
+
+	if (pool < 0)
+		return;
+	for (ind = SWIZ_MASK; ind >= 0; ind--)
+		(void)xen_tmem_flush_object(pool, oswiz(type, ind));
+}
+
+static void tmem_frontswap_init(unsigned ignored)
+{
+	struct tmem_pool_uuid private = TMEM_POOL_PRIVATE_UUID;
+
+	/* a single tmem poolid is used for all frontswap "types" (swapfiles) */
+	if (tmem_frontswap_poolid < 0)
+		tmem_frontswap_poolid =
+		    xen_tmem_new_pool(private, TMEM_POOL_PERSIST, PAGE_SIZE);
+}
+
+static int __initdata use_frontswap = 1;
+
+static int __init no_frontswap(char *s)
+{
+	use_frontswap = 0;
+	return 1;
+}
+
+__setup("nofrontswap", no_frontswap);
+
+static struct frontswap_ops tmem_frontswap_ops = {
+	.put_page = tmem_frontswap_put_page,
+	.get_page = tmem_frontswap_get_page,
+	.invalidate_page = tmem_frontswap_flush_page,
+	.invalidate_area = tmem_frontswap_flush_area,
+	.init = tmem_frontswap_init
+};
+#endif
 
 static int __init xen_tmem_init(void)
 {
