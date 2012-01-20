@@ -1594,7 +1594,6 @@ int shmem_lock(struct file *file, int lock, struct user_struct *user)
 		user_shm_unlock(inode->i_size, user);
 		info->flags &= ~VM_LOCKED;
 		mapping_clear_unevictable(file->f_mapping);
-		scan_mapping_unevictable_pages(file->f_mapping);
 	}
 	retval = 0;
 
