@@ -387,9 +387,6 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry, int mode,
 	if (fc->no_create)
 		return -ENOSYS;
 
-	if (flags & O_DIRECT)
-		return -EINVAL;
-
 	forget = fuse_alloc_forget();
 	if (!forget)
 		return -ENOMEM;
