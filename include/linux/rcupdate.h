@@ -793,6 +793,13 @@ static inline notrace void rcu_read_unlock_sched_notrace(void)
 #define RCU_INIT_POINTER(p, v) \
 		p = (typeof(*v) __force __rcu *)(v)
 
+#define rcu_assign_pointer_nonull(p, v) \
+	({ \
+		if (!__builtin_constant_p(v)) \
+			smp_wmb(); \
+		(p) = (v); \
+	})
+
 static __always_inline bool __is_kfree_rcu_offset(unsigned long offset)
 {
 	return offset < 4096;
