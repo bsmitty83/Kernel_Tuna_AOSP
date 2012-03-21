@@ -108,6 +108,18 @@ extern void __vma_adjust_trans_huge(struct vm_area_struct *vma,
 				    unsigned long start,
 				    unsigned long end,
 				    long adjust_next);
+extern int __pmd_trans_huge_lock(pmd_t *pmd,
+				 struct vm_area_struct *vma);
+/* mmap_sem must be held on entry */
+static inline int pmd_trans_huge_lock(pmd_t *pmd,
+				      struct vm_area_struct *vma)
+{
+	VM_BUG_ON(!rwsem_is_locked(&vma->vm_mm->mmap_sem));
+	if (pmd_trans_huge(*pmd))
+		return __pmd_trans_huge_lock(pmd, vma);
+	else
+		return 0;
+}
 static inline void vma_adjust_trans_huge(struct vm_area_struct *vma,
 					 unsigned long start,
 					 unsigned long end,
@@ -170,6 +182,11 @@ static inline void vma_adjust_trans_huge(struct vm_area_struct *vma,
 					 unsigned long end,
 					 long adjust_next)
 {
+}
+static inline int pmd_trans_huge_lock(pmd_t *pmd,
+				      struct vm_area_struct *vma)
+{
+	return 0;
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
 
