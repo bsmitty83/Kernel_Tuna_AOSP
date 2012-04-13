@@ -334,10 +334,10 @@ struct omap_hwmod_class_sysconfig {
 	u16 sysc_offs;
 	u16 syss_offs;
 	u16 sysc_flags;
-	u16 srst_udelay;
+	struct omap_hwmod_sysc_fields *sysc_fields;
+	u8 srst_udelay;
 	u8 idlemodes;
 	u8 clockact;
-	struct omap_hwmod_sysc_fields *sysc_fields;
 };
 
 /**
