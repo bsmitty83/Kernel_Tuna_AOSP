@@ -260,6 +260,7 @@ static int zram_read_before_write(struct zram *zram, char *mem, u32 index)
 	}
 
 	cmem = zs_map_object(zram->mem_pool, handle, ZS_MM_RO);
+
 	ret = lzo1x_decompress_safe(cmem, zram->table[index].size,
 				    mem, &clen);
 	zs_unmap_object(zram->mem_pool, handle);
@@ -352,6 +353,7 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		ret = -ENOMEM;
 		goto out;
 	}
+
 	cmem = zs_map_object(zram->mem_pool, handle, ZS_MM_WO);
 
 	memcpy(cmem, src, clen);
