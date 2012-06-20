@@ -1339,7 +1339,7 @@ unsigned long mem_cgroup_isolate_pages(unsigned long nr_to_scan,
 
 /**
  * mem_cgroup_margin - calculate chargeable space of a memory cgroup
- * @mem: the memory cgroup
+ * @memcg: the memory cgroup
  *
  * Returns the maximum amount of memory @mem can be charged with, in
  * pages.
@@ -1590,7 +1590,7 @@ mem_cgroup_select_victim(struct mem_cgroup *root_mem)
 
 /**
  * test_mem_cgroup_node_reclaimable
- * @mem: the target memcg
+ * @memcg: the target memcg
  * @nid: the node ID to be checked.
  * @noswap : specify true here if the user wants flle only information.
  *
