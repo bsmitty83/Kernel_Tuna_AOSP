@@ -560,6 +560,13 @@ config OMAP_DIE_TEMP_SENSOR
           Enabling this config will give support for the on-die
           temp sensor for the OMAP platform.
 
+config OMAP_TEMP_CONTROL
+	bool "Enable support for Temp Control"
+	depends on OMAP_DIE_TEMP_SENSOR
+	default y
+	help
+	  Enable support for Temp Control
+
 config LEDS_AN30259A
         tristate "LED driver for panasonic AN30259A RGB LED"
         depends on I2C
