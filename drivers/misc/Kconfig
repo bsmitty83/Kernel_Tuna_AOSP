@@ -606,6 +606,12 @@ config COLOR_CONTROL
 	bool "Support for Color Control"
 	default y
 	help
-	  Say Y here to enable Color Control
+	  Say Y here to enable Color Control<<<<<<< HEAD
+
+config CUSTOM_VOLTAGE
+	bool "Support for Custom Voltage"
+	default y
+	help
+	  Say Y here to enable Custom Voltage
 
 endif # MISC_DEVICES

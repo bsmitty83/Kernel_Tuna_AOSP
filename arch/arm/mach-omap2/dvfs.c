@@ -31,6 +31,10 @@
 #ifdef CONFIG_OMAP4_DPLL_CASCADING
 #include <mach/omap4-common.h>
 #endif
+#ifdef CONFIG_CUSTOM_VOLTAGE
+#include <linux/custom_voltage.h>
+#endif
+
 /**
  * DOC: Introduction
  * =================
@@ -253,7 +257,9 @@ static struct omap_vdd_dvfs_info *_dev_to_dvfs_info(struct device *dev)
  *
  * Returns NULL on failure.
  */
+#ifndef CONFIG_CUSTOM_VOLTAGE
 static
+#endif
 struct omap_vdd_dvfs_info *_voltdm_to_dvfs_info(struct voltagedomain *voltdm)
 {
 	struct omap_vdd_dvfs_info *dvfs_info;
@@ -268,6 +274,9 @@ struct omap_vdd_dvfs_info *_voltdm_to_dvfs_info(struct voltagedomain *voltdm)
 
 	return NULL;
 }
+#ifdef CONFIG_CUSTOM_VOLTAGE
+EXPORT_SYMBOL(_voltdm_to_dvfs_info);
+#endif
 
 /* rest of the helper functions */
 /**
@@ -1367,5 +1376,10 @@ int __init omap_dvfs_register_device(struct device *dev, char *voltdm_name,
 	/* Fall through */
 out:
 	mutex_unlock(&omap_dvfs_lock);
+
+#ifdef CONFIG_CUSTOM_VOLTAGE
+	customvoltage_register_dvfsmutex(&omap_dvfs_lock);
+#endif
+
 	return ret;
 }

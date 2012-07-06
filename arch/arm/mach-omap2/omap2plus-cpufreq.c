@@ -48,6 +48,10 @@
 
 #include "dvfs.h"
 
+#ifdef CONFIG_CUSTOM_VOLTAGE
+#include <linux/custom_voltage.h>
+#endif
+
 #ifdef CONFIG_SMP
 struct lpj_info {
 	unsigned long	ref;
@@ -548,6 +552,10 @@ static int __cpuinit omap_cpu_init(struct cpufreq_policy *policy)
 	/* FIXME: what's the actual transition time? */
 	policy->cpuinfo.transition_latency = 300 * 1000;
 
+#ifdef CONFIG_CUSTOM_VOLTAGE
+	customvoltage_register_freqmutex(&omap_cpufreq_lock);
+#endif
+
 	return 0;
 
 fail_table:
@@ -665,11 +673,34 @@ struct freq_attr omap_cpufreq_attr_screen_on_freq = {
 	.store = store_screen_on_freq,
 };
 
+#ifdef CONFIG_CUSTOM_VOLTAGE
+static ssize_t show_UV_mV_table(struct cpufreq_policy * policy, char * buf)
+{
+    return customvoltage_mpuvolt_read(NULL, NULL, buf);
+}
+
+static ssize_t store_UV_mV_table(struct cpufreq_policy * policy, const char * buf, size_t count)
+{
+    return customvoltage_mpuvolt_write(NULL, NULL, buf, count);
+}
+
+static struct freq_attr omap_UV_mV_table = {
+    .attr = {.name = "UV_mV_table",
+	     .mode=0644,
+    },
+    .show = show_UV_mV_table,
+    .store = store_UV_mV_table,
+};
+#endif
+
 static struct freq_attr *omap_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	&omap_cpufreq_attr_screen_off_freq,
 	&omap_cpufreq_attr_screen_on_freq,
 	&iva_clock,
+#ifdef CONFIG_CUSTOM_VOLTAGE
+	&omap_UV_mV_table,
+#endif
 	NULL,
 };
 
