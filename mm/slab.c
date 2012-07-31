@@ -160,6 +160,23 @@
  */
 static bool pfmemalloc_active __read_mostly;
 
+/* Legal flag mask for kmem_cache_create(). */
+#if DEBUG
+# define CREATE_MASK	(SLAB_RED_ZONE | \
+			 SLAB_POISON | SLAB_HWCACHE_ALIGN | \
+			 SLAB_CACHE_DMA | \
+			 SLAB_STORE_USER | \
+			 SLAB_RECLAIM_ACCOUNT | SLAB_PANIC | \
+			 SLAB_DESTROY_BY_RCU | SLAB_MEM_SPREAD | \
+			 SLAB_DEBUG_OBJECTS | SLAB_NOLEAKTRACE | SLAB_NOTRACK)
+#else
+# define CREATE_MASK	(SLAB_HWCACHE_ALIGN | \
+			 SLAB_CACHE_DMA | \
+			 SLAB_RECLAIM_ACCOUNT | SLAB_PANIC | \
+			 SLAB_DESTROY_BY_RCU | SLAB_MEM_SPREAD | \
+			 SLAB_DEBUG_OBJECTS | SLAB_NOLEAKTRACE | SLAB_NOTRACK)
+#endif
+
 /*
  * kmem_bufctl_t:
  *
