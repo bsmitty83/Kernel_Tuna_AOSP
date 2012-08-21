@@ -666,6 +666,7 @@ int tf_fill_descriptor_table(
 	u32 page_count;
 	u32 page_shift = 0;
 	int ret = 0;
+	int uninitialized_var(error);
 	unsigned int info = read_cpuid(CPUID_CACHETYPE);
 
 	dprintk(KERN_INFO "tf_fill_descriptor_table"
