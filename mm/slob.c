@@ -598,7 +598,6 @@ int __kmem_cache_create(struct kmem_cache *c, unsigned long flags)
 	if (c->align < align)
 		c->align = align;
 
-	c->refcount = 1;
 	return 0;
 }
 
