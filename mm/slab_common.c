@@ -22,6 +22,7 @@
 enum slab_state slab_state;
 LIST_HEAD(slab_caches);
 DEFINE_MUTEX(slab_mutex);
+struct kmem_cache *kmem_cache;
 
 /*
  * kmem_cache_create - Create a cache.
