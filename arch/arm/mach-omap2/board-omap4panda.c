@@ -234,14 +234,6 @@ static struct fixed_voltage_config panda_vwlan = {
 	.init_data = &panda_vmmc5,
 };
 
-static struct platform_device omap_vwlan_device = {
-	.name		= "reg-fixed-voltage",
-	.id		= 1,
-	.dev = {
-		.platform_data = &panda_vwlan,
-	},
-};
-
 struct wl12xx_platform_data omap_panda_wlan_data  __initdata = {
 	.irq = OMAP_GPIO_IRQ(GPIO_WIFI_IRQ),
 	/* PANDA ref clock is 38.4 MHz */
