@@ -68,3 +68,4 @@ obj-$(CONFIG_COLOR_CONTROL)	+= color_control.o
 obj-$(CONFIG_CUSTOM_VOLTAGE)	+= custom_voltage.o
 obj-$(CONFIG_FSYNC_CONTROL)	+= fsync_control.o
 obj-$(CONFIG_SOUND_CONTROL)	+= sound_control.o
+obj-$(CONFIG_TOUCH_WAKE)       += touch_wake.o
