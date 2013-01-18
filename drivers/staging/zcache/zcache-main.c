@@ -2818,7 +2818,7 @@ int zcache_autocreate_pool(int cli_id, int pool_id, bool ephemeral)
 {
 	struct tmem_pool *pool;
 	struct zcache_client *cli = NULL;
-	uint32_t flags = ephemeral ? 0 : TMEM_POOL_PERSIST;
+	uint32_t flags = eph ? 0 : TMEM_POOL_PERSIST;
 	int ret = -1;
 
 	if (cli_id == LOCAL_CLIENT)
