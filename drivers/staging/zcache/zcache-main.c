@@ -2499,40 +2499,47 @@ static struct kobj_attribute ramster_manual_node_up_attr = {
 static ssize_t ramster_remote_target_nodenum_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	if (ramster_remote_target_nodenum == -1UL)
-		return sprintf(buf, "unset\n");
-	else
-		return sprintf(buf, "%d\n", ramster_remote_target_nodenum);
-}
+	struct tmem_handle th[2];
+	int ret = -ENOMEM;
+	int nzbuds, unuse_ret;
+	unsigned type;
+	struct page *newpage1 = NULL, *newpage2 = NULL;
+	struct page *evictpage1 = NULL, *evictpage2 = NULL;
+	pgoff_t offset;
 
-static ssize_t ramster_remote_target_nodenum_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int err;
-	unsigned long node_num;
-
-	err = kstrtoul(buf, 10, &node_num);
-	if (err) {
-		pr_err("ramster: bad strtoul?\n");
-		return -EINVAL;
-	} else if (node_num == -1UL) {
-		pr_err("ramster: disabling all remotification, "
-			"data may still reside on remote nodes however\n");
-		return -EINVAL;
-	} else if (node_num >= MANUAL_NODES) {
-		pr_err("ramster: bad node_num=%lu?\n", node_num);
-		return -EINVAL;
-	} else if (!ramster_nodes_manual_up[node_num]) {
-		pr_err("ramster: node %d not up, ignoring setting "
-			"of remotification target\n", (int)node_num);
-	} else if (r2net_remote_target_node_set((int)node_num) >= 0) {
-		pr_info("ramster: node %d set as remotification target\n",
-				(int)node_num);
-		ramster_remote_target_nodenum = (int)node_num;
-	} else {
-		pr_err("ramster: bad num to node node_num=%d?\n",
-				(int)node_num);
-		return -EINVAL;
+	newpage1 = alloc_page(ZCACHE_GFP_MASK);
+	newpage2 = alloc_page(ZCACHE_GFP_MASK);
+	if (newpage1 == NULL)
+		evictpage1 = zcache_evict_eph_pageframe();
+	if (newpage2 == NULL)
+		evictpage2 = zcache_evict_eph_pageframe();
+	if (evictpage1 == NULL || evictpage2 == NULL)
+		goto free_and_out;
+	/* ok, we have two pages pre-allocated */
+	nzbuds = zbud_make_zombie_lru(&th[0], NULL, NULL, false);
+	if (nzbuds == 0) {
+		ret = -ENOENT;
+		goto free_and_out;
+	}
+	unswiz(th[0].oid, th[0].index, &type, &offset);
+	unuse_ret = frontswap_unuse(type, offset,
+				newpage1 != NULL ? newpage1 : evictpage1,
+				ZCACHE_GFP_MASK);
+	if (unuse_ret != 0)
+		goto free_and_out;
+	else if (evictpage1 != NULL)
+		zcache_unacct_page();
+	newpage1 = NULL;
+	evictpage1 = NULL;
+	if (nzbuds == 2) {
+		unswiz(th[1].oid, th[1].index, &type, &offset);
+		unuse_ret = frontswap_unuse(type, offset,
+				newpage2 != NULL ? newpage2 : evictpage2,
+				ZCACHE_GFP_MASK);
+		if (unuse_ret != 0)
+			goto free_and_out;
+		else if (evictpage2 != NULL)
+			zcache_unacct_page();
 	}
 	return count;
 }
