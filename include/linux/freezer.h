@@ -8,6 +8,11 @@
 
 #ifdef CONFIG_FREEZER
 /*
+ * Timeout for stopping processes
+ */
+extern unsigned int freeze_timeout_msecs;
+
+/*
  * Check if a process has been frozen
  */
 static inline int frozen(struct task_struct *p)
