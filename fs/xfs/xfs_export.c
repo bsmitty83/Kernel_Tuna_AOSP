@@ -47,7 +47,7 @@ static int xfs_fileid_length(int fileid_type)
 	case FILEID_INO32_GEN_PARENT | XFS_FILEID_TYPE_64FLAG:
 		return 6;
 	}
-	return 255; /* invalid */
+	return FILEID_INVALID;
 }
 
 STATIC int
@@ -89,7 +89,7 @@ xfs_fs_encode_fh(
 	len = xfs_fileid_length(fileid_type);
 	if (*max_len < len) {
 		*max_len = len;
-		return 255;
+		return FILEID_INVALID;
 	}
 	*max_len = len;
 
