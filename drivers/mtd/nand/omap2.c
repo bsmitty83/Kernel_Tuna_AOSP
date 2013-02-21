@@ -909,6 +909,7 @@ static int omap_wait(struct mtd_info *mtd, struct nand_chip *chip)
 	return status;
 }
 
+#define WAIT0STATUS	0x100
 /**
  * omap_dev_ready - calls the platform specific dev_ready function
  * @mtd: MTD device structure
@@ -918,8 +919,26 @@ static int omap_dev_ready(struct mtd_info *mtd)
 	unsigned int val, cnt = 0;
 	while (cnt++ < 0x1FF) {
 		val = gpmc_read_status(GPMC_GET_STATUS);
-		if ((val & 0x100) == 0x100)
-			return 1;
+		if ((val & WAIT0STATUS) == WAIT0STATUS)
+		{
+			/*
+			 * It is rare, but the read operation can receive
+			 * bogus data from the chip.  It gets a number of
+			 * bytes of invalid data followed by what should
+			 * have been the start of the data stream.  So it
+			 * seems that the chip wasn't really ready, despite
+			 * the indication of the ready line in the
+			 * GPMC_STATUS register.  Either the chip changed
+			 * its mind after tWB (not supposed to happen according
+			 * to the datasheet) or the status register didn't
+			 * properly reflect the ready line.  Either way,
+			 * rereading the bit to verify readiness resolves the
+			 * problem.
+			 */
+			val = gpmc_read_status(GPMC_GET_STATUS);
+			if ((val & WAIT0STATUS) == WAIT0STATUS)
+				return 1;
+		}
 	}
 
 	return 0;
