@@ -1230,6 +1230,9 @@ finished:
 
 	fbcon_free_font(p, free_font);
 
+	if (free_font)
+		vc->vc_font.data = NULL;
+
 	if (!con_is_bound(&fb_con))
 		fbcon_exit();
 
