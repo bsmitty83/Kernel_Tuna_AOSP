@@ -66,7 +66,6 @@ static void tick_broadcast_start_periodic(struct clock_event_device *bc)
  */
 int tick_check_broadcast_device(struct clock_event_device *dev)
 {
-
 	struct clock_event_device *cur = tick_broadcast_device.evtdev;
 
 	if ((dev->features & CLOCK_EVT_FEAT_DUMMY) ||

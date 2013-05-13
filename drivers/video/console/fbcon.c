@@ -1229,7 +1229,6 @@ static void fbcon_deinit(struct vc_data *vc)
 finished:
 
 	fbcon_free_font(p, free_font);
-
 	if (free_font)
 		vc->vc_font.data = NULL;
 
