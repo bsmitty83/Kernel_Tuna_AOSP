@@ -393,7 +393,7 @@ static void charger_set_charge(int state)
 
 	spin_lock_irqsave(&charge_en_lock, flags);
 #ifdef CONFIG_FORCE_FAST_CHARGE
-	gpio_set_value(GPIO_CHG_CUR_ADJ, (state & PDA_POWER_CHARGE_AC) || (state && force_fast_charge));
+	gpio_set_value(GPIO_CHG_CUR_ADJ, (state & PDA_POWER_CHARGE_AC) || force_fast_charge);
 #else
 	gpio_set_value(GPIO_CHG_CUR_ADJ, !!(state & PDA_POWER_CHARGE_AC));
 #endif
