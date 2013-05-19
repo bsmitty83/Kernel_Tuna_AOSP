@@ -32,6 +32,7 @@
 #endif
 
 #include <linux/delay.h>
+#include <linux/fastchg.h>
 
 #include <plat/cpu.h>
 #include <plat/omap-pm.h>
@@ -391,7 +392,11 @@ static void charger_set_charge(int state)
 	unsigned long flags;
 
 	spin_lock_irqsave(&charge_en_lock, flags);
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	gpio_set_value(GPIO_CHG_CUR_ADJ, (state & PDA_POWER_CHARGE_AC) || force_fast_charge);
+#else
 	gpio_set_value(GPIO_CHG_CUR_ADJ, !!(state & PDA_POWER_CHARGE_AC));
+#endif
 	charger_state = state;
 	set_charge_en(state);
 	spin_unlock_irqrestore(&charge_en_lock, flags);

@@ -34,7 +34,6 @@
 #include <linux/mutex.h>
 #include <linux/switch.h>
 #include <linux/wakelock.h>
-
 #include <plat/usb.h>
 
 #include "mux.h"
