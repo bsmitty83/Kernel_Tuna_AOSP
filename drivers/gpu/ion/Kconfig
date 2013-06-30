@@ -16,3 +16,10 @@ config ION_OMAP
 	help
 	  Choose this option if you wish to use ion on OMAP4.
 
+config ION_OMAP_USE_DYNAMIC_PAGES
+	bool "Use dynamic memory instead of static reservations"
+	depends on ION_OMAP
+	help
+	  Choose this option to use heap space for ION allocations
+	  instead of the standard memory reservations.
+	  Useful for lower memory boards.
