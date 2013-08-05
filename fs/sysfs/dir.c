@@ -963,5 +963,5 @@ const struct file_operations sysfs_dir_operations = {
 	.read		= generic_read_dir,
 	.readdir	= sysfs_readdir,
 	.release	= sysfs_dir_release,
-	.llseek    = generic_file_llseek,
+	.llseek		= generic_file_llseek,
 };
