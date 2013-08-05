@@ -79,3 +79,8 @@ GTAGS
 *.orig
 *~
 \#*#
+build.sh
+changelog.sh
+version
+arch/arm/boot/compressed/ashldi3.S
+arch/arm/boot/compressed/piggy.xzkern
