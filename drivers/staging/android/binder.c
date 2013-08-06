@@ -2444,6 +2444,8 @@ retry:
 			struct task_struct *sender = t->from->proc->tsk;
 			tr.sender_pid = task_tgid_nr_ns(sender,
 							current->nsproxy->pid_ns);
+			if (tr.sender_pid == 0)
+				tr.sender_pid = task_tgid_nr(sender);
 		} else {
 			tr.sender_pid = 0;
 		}
