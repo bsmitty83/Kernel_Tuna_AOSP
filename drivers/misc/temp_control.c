@@ -18,7 +18,7 @@
 
 static int temp_limit, original_templimit;
 
-static bool safety_enabled = true;
+static bool safety_enabled = false;
 
 extern void tempcontrol_update(int templimit);
 
