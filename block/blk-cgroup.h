@@ -32,6 +32,8 @@ extern struct cgroup_subsys blkio_subsys;
 #define blkio_subsys_id blkio_subsys.subsys_id
 #endif
 
+extern struct percpu_mempool *blkg_stats_cpu_pool;
+
 enum stat_type {
 	/* Total time spent (in ns) between request dispatch to the driver and
 	 * request completion for IOs doen by this cgroup. This may not be
@@ -188,7 +190,7 @@ struct blkio_policy_node {
 	union {
 		unsigned int weight;
 		/*
-		 * Rate read/write in terms of byptes per second
+		 * Rate read/write in terms of bytes per second
 		 * Whether this rate represents read or write is determined
 		 * by file type "fileid".
 		 */
