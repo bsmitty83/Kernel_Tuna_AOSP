@@ -1076,10 +1076,10 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 #ifdef CONFIG_HOTPLUG_CPU
 	strncpy(per_cpu(cpufreq_policy_save, cpu).gov, data->governor->name,
 			CPUFREQ_NAME_LEN);
-  	per_cpu(cpufreq_policy_save, cpu).min = data->min;
-  	per_cpu(cpufreq_policy_save, cpu).max = data->max;
-  	pr_debug("Saving CPU%d policy min %d and max %d\n",
-      		cpu, data->min, data->max);
+  	per_cpu(cpufreq_policy_save, cpu).min = data->user_policy.min;
+  	per_cpu(cpufreq_policy_save, cpu).max = data->user_policy.max;
+  	pr_debug("Saving CPU%d user policy min %d and max %d\n",
+      		cpu, data->user_policy.min, data->user_policy.max);
 #endif
 
 	/* if we have other CPUs still registered, we need to unlink them,
@@ -1105,9 +1105,11 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 #ifdef CONFIG_HOTPLUG_CPU
 			strncpy(per_cpu(cpufreq_policy_save, j).gov,
 				data->governor->name, CPUFREQ_NAME_LEN);
-      			per_cpu(cpufreq_policy_save, j).min = data->min;
-      			per_cpu(cpufreq_policy_save, j).max = data->max;
-      			pr_debug("Saving CPU%d policy min %d and max %d\n",
+      			per_cpu(cpufreq_policy_save, j).min
+            			= data->user_policy.min;
+      			per_cpu(cpufreq_policy_save, j).max
+            			= data->user_policy.max;
+      			pr_debug("Saving CPU%d user policy min %d and max %d\n",
           			j, data->min, data->max);
 #endif
 			cpu_sys_dev = get_cpu_sysdev(j);
