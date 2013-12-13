@@ -10,7 +10,7 @@
 #
 
 BCJ=
-LZMA2OPTS=
+LZMA2OPTS=lp=2,lc=2,nice=273,depth=65
 
 case $ARCH in
 	x86|x86_64)     BCJ=--x86 ;;
