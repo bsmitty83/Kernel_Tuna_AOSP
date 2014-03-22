@@ -9,6 +9,8 @@
 #include <linux/types.h>
 #include <linux/posix_types.h>
 
+#include <linux/fdtable.h>
+
 struct file;
 
 extern void fput(struct file *);
@@ -34,10 +36,13 @@ extern struct file *fget_raw_light(unsigned int fd, int *fput_needed);
 extern void set_close_on_exec(unsigned int fd, int flag);
 extern void put_filp(struct file *);
 extern int alloc_fd(unsigned start, unsigned flags);
+extern int __alloc_fd(struct files_struct *files, unsigned start, unsigned end, unsigned flags);
 extern int get_unused_fd(void);
 #define get_unused_fd_flags(flags) alloc_fd(0, (flags))
 extern void put_unused_fd(unsigned int fd);
 
 extern void fd_install(unsigned int fd, struct file *file);
+extern void  __fd_install(struct files_struct *files, unsigned int fd, struct file *file);
+extern int __close_fd(struct files_struct *files, unsigned fd);
 
 #endif /* __LINUX_FILE_H */

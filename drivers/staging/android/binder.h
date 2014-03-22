@@ -53,17 +53,17 @@ struct flat_binder_object {
 
 	/* 8 bytes of data. */
 	union {
-		void		*binder;	/* local object */
+		void __user	*binder;	/* local object */
 		signed long	handle;		/* remote object */
 	};
 
 	/* extra data associated with local object */
-	void			*cookie;
+	void __user		*cookie;
 };
 
 /*
  * On 64-bit platforms where user code may run in 32-bits the driver must
- * translate the buffer (and local binder) addresses apropriately.
+ * translate the buffer (and local binder) addresses appropriately.
  */
 
 struct binder_write_read {
@@ -84,7 +84,7 @@ struct binder_version {
 /* This is the current protocol version. */
 #define BINDER_CURRENT_PROTOCOL_VERSION 7
 
-#define BINDER_WRITE_READ   		_IOWR('b', 1, struct binder_write_read)
+#define BINDER_WRITE_READ		_IOWR('b', 1, struct binder_write_read)
 #define	BINDER_SET_IDLE_TIMEOUT		_IOW('b', 3, int64_t)
 #define	BINDER_SET_MAX_THREADS		_IOW('b', 5, size_t)
 #define	BINDER_SET_IDLE_PRIORITY	_IOW('b', 6, int)
@@ -139,9 +139,9 @@ struct binder_transaction_data {
 	union {
 		struct {
 			/* transaction data */
-			const void	*buffer;
+			const void __user	*buffer;
 			/* offsets from buffer to flat_binder_object structs */
-			const void	*offsets;
+			const void __user	*offsets;
 		} ptr;
 		uint8_t	buf[8];
 	} data;
