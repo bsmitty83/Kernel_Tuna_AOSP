@@ -428,9 +428,9 @@ struct files_struct init_files = {
 /*
  * allocate a file descriptor, mark it busy.
  */
-int alloc_fd(unsigned start, unsigned flags)
+int __alloc_fd(struct files_struct *files,
+		unsigned start, unsigned end, unsigned flags)
 {
-	struct files_struct *files = current->files;
 	unsigned int fd;
 	int error;
 	struct fdtable *fdt;
@@ -445,6 +445,14 @@ repeat:
 	if (fd < fdt->max_fds)
 		fd = find_next_zero_bit(fdt->open_fds->fds_bits,
 					   fdt->max_fds, fd);
+
+	/*
+	* N.B. For clone tasks sharing a files structure, this test
+	* will limit the total number of files that can be opened.
+	*/
+	error = -EMFILE;
+	if (fd >= end)
+       goto out;
 
 	error = expand_files(files, fd);
 	if (error < 0)
@@ -479,8 +487,14 @@ out:
 	return error;
 }
 
+int alloc_fd(unsigned start, unsigned flags)
+{
+        return __alloc_fd(current->files, start, rlimit(RLIMIT_NOFILE), flags);
+}
+
 int get_unused_fd(void)
 {
 	return alloc_fd(0, 0);
 }
 EXPORT_SYMBOL(get_unused_fd);
+
