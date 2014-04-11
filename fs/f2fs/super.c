@@ -503,7 +503,7 @@ static int f2fs_show_options(struct seq_file *seq, struct vfsmount *vfs)
 {
 	struct f2fs_sb_info *sbi = F2FS_SB(vfs->mnt_sb);
 
-	if (!(vfs->mnt_sb->s_flags & MS_RDONLY) && test_opt(sbi, BG_GC))
+	if (!f2fs_readonly(sbi->sb) && test_opt(sbi, BG_GC))
 		seq_printf(seq, ",background_gc=%s", "on");
 	else
 		seq_printf(seq, ",background_gc=%s", "off");
@@ -531,7 +531,7 @@ static int f2fs_show_options(struct seq_file *seq, struct vfsmount *vfs)
 		seq_puts(seq, ",disable_ext_identify");
 	if (test_opt(sbi, INLINE_DATA))
 		seq_puts(seq, ",inline_data");
-	if (test_opt(sbi, FLUSH_MERGE))
+	if (!f2fs_readonly(sbi->sb) && test_opt(sbi, FLUSH_MERGE))
 		seq_puts(seq, ",flush_merge");
 	if (test_opt(sbi, NOBARRIER))
 		seq_puts(seq, ",nobarrier");
