@@ -103,12 +103,7 @@ static unsigned long default_timer_rate;
 #define DEFAULT_ABOVE_HISPEED_DELAY DEFAULT_TIMER_RATE
 static unsigned long above_hispeed_delay_val = DEFAULT_ABOVE_HISPEED_DELAY;
 /* 500ms - 0.5s */
-#define DEFAULT_BOOSTPULSE_DURATION 500000
-/* Duration of a boot pulse in usecs */
-<<<<<<< HEAD
 #define DEFAULT_BOOSTPULSE_DURATION 80000
-=======
->>>>>>> f645516...  cpufreq: interactive: fix a wrong behavior of boostpulse freq and his…
 static int boostpulse_duration_val = DEFAULT_BOOSTPULSE_DURATION;
 /* End time of boost pulse in ktime converted to usecs */
 static u64 boostpulse_endtime;
@@ -379,8 +374,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	if (new_freq < hispeed_freq)
 	new_freq = hispeed_freq;
-	} else if (boosted) {
-	new_freq = input_boost_freq;
 	} else {
 	new_freq = choose_freq(pcpu, loadadjfreq);
 	}
