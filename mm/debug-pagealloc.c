@@ -3,6 +3,14 @@
 #include <linux/page-debug-flags.h>
 #include <linux/poison.h>
 
+#ifndef mark_addr_rdonly
+#define mark_addr_rdonly(a)
+#endif
+
+#ifndef mark_addr_rdwrite
+#define mark_addr_rdwrite(a)
+#endif
+
 static inline void set_page_poison(struct page *page)
 {
 	__set_bit(PAGE_DEBUG_FLAG_POISON, &page->debug_flags);
@@ -40,6 +48,7 @@ static void poison_page(struct page *page)
 	set_page_poison(page);
 	addr = page_address(page);
 	memset(addr, PAGE_POISON, PAGE_SIZE);
+	mark_addr_rdonly(addr);
 }
 
 static void poison_pages(struct page *page, int n)
@@ -104,9 +113,11 @@ static void unpoison_page(struct page *page)
 	if (page_poison(page)) {
 		void *addr = page_address(page);
 
+		mark_addr_rdwrite(addr);
 		check_poison_mem(addr, PAGE_SIZE);
 		clear_page_poison(page);
 	}
+
 }
 
 static void unpoison_pages(struct page *page, int n)
