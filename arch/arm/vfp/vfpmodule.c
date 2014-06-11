@@ -519,6 +519,7 @@ void vfp_flush_hwstate(struct thread_info *thread)
 	 * be reloaded in the above case.
 	 */
 	thread->vfpstate.hard.cpu = NR_CPUS;
+	vfp_current_hw_state[cpu] = NULL;
 #endif
 	put_cpu();
 }
