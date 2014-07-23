@@ -267,6 +267,9 @@ int f2fs_issue_flush(struct f2fs_sb_info *sbi)
 	struct flush_cmd *cmd;
 	int ret;
 
+	if (test_opt(sbi, NOBARRIER))
+		return 0;
+
 	if (!test_opt(sbi, FLUSH_MERGE))
 		return blkdev_issue_flush(sbi->sb->s_bdev, GFP_KERNEL, NULL);
 
