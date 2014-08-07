@@ -179,7 +179,7 @@ int f2fs_write_inline_data(struct inode *inode,
 	return 0;
 }
 
-int recover_inline_data(struct inode *inode, struct page *npage)
+bool recover_inline_data(struct inode *inode, struct page *npage)
 {
 	struct f2fs_sb_info *sbi = F2FS_SB(inode->i_sb);
 	struct f2fs_inode *ri = NULL;
@@ -198,7 +198,7 @@ int recover_inline_data(struct inode *inode, struct page *npage)
 		ri = F2FS_INODE(npage);
 
 	if (f2fs_has_inline_data(inode) &&
-			ri && ri->i_inline & F2FS_INLINE_DATA) {
+			ri && (ri->i_inline & F2FS_INLINE_DATA)) {
 process_inline:
 		ipage = get_node_page(sbi, inode->i_ino);
 		f2fs_bug_on(IS_ERR(ipage));
@@ -208,7 +208,7 @@ process_inline:
 		memcpy(dst_addr, src_addr, MAX_INLINE_DATA);
 		update_inode(inode, ipage);
 		f2fs_put_page(ipage, 1);
-		return -1;
+		return true;
 	}
 
 	if (f2fs_has_inline_data(inode)) {
@@ -219,10 +219,10 @@ process_inline:
 		clear_inode_flag(F2FS_I(inode), FI_INLINE_DATA);
 		update_inode(inode, ipage);
 		f2fs_put_page(ipage, 1);
-	} else if (ri && ri->i_inline & F2FS_INLINE_DATA) {
+	} else if (ri && (ri->i_inline & F2FS_INLINE_DATA)) {
 		truncate_blocks(inode, 0);
 		set_inode_flag(F2FS_I(inode), FI_INLINE_DATA);
 		goto process_inline;
 	}
-	return 0;
+	return false;
 }
