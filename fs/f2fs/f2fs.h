@@ -1396,7 +1396,7 @@ extern const struct inode_operations f2fs_special_inode_operations;
  */
 bool f2fs_may_inline(struct inode *);
 int f2fs_read_inline_data(struct inode *, struct page *);
-int f2fs_convert_inline_data(struct inode *, pgoff_t);
+int f2fs_convert_inline_data(struct inode *, pgoff_t, struct page *);
 int f2fs_write_inline_data(struct inode *, struct page *, unsigned int);
 int recover_inline_data(struct inode *, struct page *);
 #endif
