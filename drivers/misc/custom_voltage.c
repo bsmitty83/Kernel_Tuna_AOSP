@@ -107,24 +107,24 @@ static struct opp ** l3_opp = NULL;
 static struct opp ** fdif_opp = NULL;
 static struct opp ** hsi_opp = NULL;
 
-static int num_ivafreqs, num_dspfreqs, num_aessfreqs;
+static int num_ivafreqs, num_dsp_c0freqs, num_aessfreqs;
 
 static u32 ** iva_voltages = NULL;
 static u32 ** iva_voltages_calibrated = NULL;
 
 static struct device * iva_device = NULL;
-static struct device * dsp_device = NULL;
+static struct device * dsp_c0_device = NULL;
 static struct device * aess_device = NULL;
 
 static struct voltagedomain * iva_voltdm = NULL;
 static struct omap_vdd_dvfs_info * iva_dvfsinfo = NULL;
 
 static int * iva_depend = NULL;
-static int * dsp_depend = NULL;
+static int * dsp_c0_depend = NULL;
 static int * aess_depend = NULL;
 
 static struct opp ** iva_opp = NULL;
-static struct opp ** dsp_opp = NULL;
+static struct opp ** dsp_c0_opp = NULL;
 static struct opp ** aess_opp = NULL;
 
 static int * mpu_depindex = NULL;
@@ -205,10 +205,10 @@ void customvoltage_register_oppdevice(struct device * dev, char * dev_name)
 	    if (!hsi_device)
 		hsi_device = dev;
 	}
-    else if (!strcmp(dev_name, "dsp"))
+    else if (!strcmp(dev_name, "dsp_c0"))
 	{
-	    if (!dsp_device)
-		dsp_device = dev;
+	    if (!dsp_c0_device)
+		dsp_c0_device = dev;
 	}
     else if (!strcmp(dev_name, "aess"))
 	{
@@ -497,17 +497,17 @@ void customvoltage_init(void)
 		}
 	}
 
-    dev_opp = find_device_opp(dsp_device);
+    dev_opp = find_device_opp(dsp_c0_device);
 
-    num_dspfreqs = 0;
+    num_dsp_c0freqs = 0;
 
     list_for_each_entry(temp_opp, &dev_opp->opp_list, node)
 	{
 	    if (temp_opp->available)
-		num_dspfreqs++;
+		num_dsp_c0freqs++;
 	}
 
-    dsp_opp = kzalloc(num_dspfreqs * sizeof(struct opp *), GFP_KERNEL);
+    dsp_c0_opp = kzalloc(num_dsp_c0freqs * sizeof(struct opp *), GFP_KERNEL);
 
     i = 0;
 
@@ -515,7 +515,7 @@ void customvoltage_init(void)
 	{
 	    if (temp_opp->available)
 		{
-		    dsp_opp[i] = temp_opp;
+		    dsp_c0_opp[i] = temp_opp;
 
 		    i++;
 		}
@@ -546,7 +546,7 @@ void customvoltage_init(void)
 	}
 
     iva_depend = kzalloc(num_ivafreqs * sizeof(int), GFP_KERNEL);
-    dsp_depend = kzalloc(num_dspfreqs * sizeof(int), GFP_KERNEL);
+    dsp_c0_depend = kzalloc(num_dsp_c0freqs * sizeof(int), GFP_KERNEL);
     aess_depend = kzalloc(num_aessfreqs * sizeof(int), GFP_KERNEL);
 
     for (i = 0; i < num_corevolt; i++)
@@ -559,10 +559,10 @@ void customvoltage_init(void)
 			iva_depend[j] = i;
 		}
 
-	    for (j = 0; j < num_dspfreqs; j++)
+	    for (j = 0; j < num_dsp_c0freqs; j++)
 		{
-		    if (dsp_opp[j]->u_volt == voltage)
-			dsp_depend[j] = i;
+		    if (dsp_c0_opp[j]->u_volt == voltage)
+			dsp_c0_depend[j] = i;
 		}
 
 	    for (j = 0; j < num_aessfreqs; j++)
@@ -966,9 +966,9 @@ static void customvoltage_ivavolt_update(void)
 		if (iva_depend[j] == i)
 		    iva_opp[j]->u_volt = new_voltages[i];
 
-	    for (j = 0; j < num_dspfreqs; j++)
-		if (dsp_depend[j] == i)
-		    dsp_opp[j]->u_volt = new_voltages[i];
+	    for (j = 0; j < num_dsp_c0freqs; j++)
+		if (dsp_c0_depend[j] == i)
+		    dsp_c0_opp[j]->u_volt = new_voltages[i];
 
 	    for (j = 0; j < num_aessfreqs; j++)
 		if (aess_depend[j] == i)
