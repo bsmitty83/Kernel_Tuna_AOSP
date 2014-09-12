@@ -111,6 +111,10 @@ obj-$(CONFIG_ATOMIC64_SELFTEST) += atomic64_test.o
 
 obj-$(CONFIG_AVERAGE) += average.o
 
+CFLAGS_snappy.o += $(call cc-disable-warning, declaration-after-statement) \
+		   -DNDEBUG=1
+obj-$(CONFIG_SNAPPY) += snappy.o
+
 obj-$(CONFIG_CPU_RMAP) += cpu_rmap.o
 
 hostprogs-y	:= gen_crc32table
