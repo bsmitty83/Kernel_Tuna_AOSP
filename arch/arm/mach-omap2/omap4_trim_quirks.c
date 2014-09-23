@@ -30,8 +30,13 @@
 #define OMAP4_PROD_ID_I684_MASK		0x000C0000
 
 static bool bgap_trim_sw_overide;
-static bool dpll_trim_override;
 static bool ddr_io_trim_override;
+
+#ifdef CONFIG_OMAP4_OVERRIDE_MPU_TRIM
+static bool dpll_trim_override = true;
+#else
+static bool dpll_trim_override;
+#endif
 
 /**
  * omap4_ldo_trim_configure() - Handle device trim variance
