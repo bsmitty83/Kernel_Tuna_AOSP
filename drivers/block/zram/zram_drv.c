@@ -678,6 +678,7 @@ static void zram_bio_discard(struct zram *zram, u32 index,
 		write_lock(&zram->meta->tb_lock);
 		zram_free_page(zram, index);
 		write_unlock(&zram->meta->tb_lock);
+		atomic64_inc(&zram->stats.notify_free);
 		index++;
 		n -= PAGE_SIZE;
 	}
