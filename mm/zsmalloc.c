@@ -1179,7 +1179,9 @@ EXPORT_SYMBOL_GPL(zs_unmap_object);
 
 unsigned long zs_get_total_pages(struct zs_pool *pool)
 {
-	return atomic_long_read(&pool->pages_allocated);
+
+	u64 npages = atomic_long_read(&pool->pages_allocated);
+	return npages << PAGE_SHIFT;
 }
 EXPORT_SYMBOL_GPL(zs_get_total_pages);
 
