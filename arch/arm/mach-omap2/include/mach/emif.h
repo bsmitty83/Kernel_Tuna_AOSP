@@ -21,7 +21,7 @@
 #define EMIF2	1
 
 /* The maximum frequency at which the LPDDR2 interface can operate in Hz*/
-#define MAX_LPDDR2_FREQ	400000000	/* 400 MHz */
+#define MAX_LPDDR2_FREQ	466666666	/* 466 MHz */
 
 /* 19.2 MHz to be used for finding initialization values */
 #define EMIF_FREQ_19_2_MHZ 19200000	/* 19.2 MHz */
@@ -160,7 +160,7 @@
 #define LP_MODE_DISABLE		0
 #define LP_MODE_CLOCK_STOP	1
 #define LP_MODE_SELF_REFRESH	2
-#define LP_MODE_PWR_DN		3
+#define LP_MODE_PWR_DN		4
 
 /* REG_DPD_EN */
 #define DPD_DISABLE	0
@@ -173,7 +173,8 @@
  * values suggested by hw team.
  */
 #define EMIF_DDR_PHY_CTRL_1_BASE_VAL			0x049FF
-#define EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ			0x41
+#define EMIF_DLL_SLAVE_DLY_CTRL_466_MHZ			0x37
+#define EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ			0x40
 #define EMIF_DLL_SLAVE_DLY_CTRL_200_MHZ			0x80
 #define EMIF_DLL_SLAVE_DLY_CTRL_100_MHZ_AND_LESS	0xFF
 
@@ -238,22 +239,18 @@ struct freq_info {
 struct emif_regs {
 	u32 freq;
 	u8 RL_final;
-	u32 sdram_config_init;
-	u32 sdram_config_final;
-	u32 ref_ctrl;
-	u32 ref_ctrl_derated;
-	u32 sdram_tim1;
-	u32 sdram_tim1_derated;
-	u32 sdram_tim2;
-	u32 sdram_tim3;
-	u32 read_idle_ctrl_normal;
-	u32 read_idle_ctrl_volt_ramp;
-	u32 zq_config_normal;
-	u32 zq_config_volt_ramp;
+	u32 ref_ctrl_shdw;
+	u32 ref_ctrl_shdw_derated;
+	u32 sdram_tim1_shdw;
+	u32 sdram_tim1_shdw_derated;
+	u32 sdram_tim2_shdw;
+	u32 sdram_tim3_shdw;
+	u32 read_idle_ctrl_shdw_normal;
+	u32 read_idle_ctrl_shdw_volt_ramp;
 	u32 temp_alert_config;
 	u32 temp_alert_config_derated;
-	u32 emif_ddr_phy_ctlr_1_init;
-	u32 emif_ddr_phy_ctlr_1_final;
+	u32 emif_ddr_phy_ctlr_1_shdw_init;
+	u32 emif_ddr_phy_ctlr_1_shdw_final;
 };
 
 int omap_emif_setup_registers(u32 freq,
@@ -265,5 +262,4 @@ int omap_emif_setup_device_details(
 			const struct emif_device_details *emif2_devices);
 
 void emif_clear_irq(int emif_id);
-void emif_dump(int emif_nr);
 #endif

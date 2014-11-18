@@ -98,8 +98,8 @@
 #define C_ABE_FW_TASK_ECHO_REF_48_16_LP                     38
 #define C_ABE_FW_TASK_ECHO_REF_48_16_HP                     39
 #define C_ABE_FW_TASK_DL1_EQ                                40
-#define C_ABE_FW_TASK_IHF_48_96_LP                          41
-#define C_ABE_FW_TASK_EARP_48_96_LP                         42
+#define C_ABE_FW_TASK_IHF_48_96_LP_OLD                      41
+#define C_ABE_FW_TASK_EARP_48_96_LP_OLD                     42
 #define C_ABE_FW_TASK_DL1_GAIN                              43
 #define C_ABE_FW_TASK_DL2_GAIN                              44
 #define C_ABE_FW_TASK_IO_PING_PONG                          45
@@ -186,11 +186,31 @@
 #define C_ABE_FW_TASK_SRC44P1_TONES_1211                    126
 #define C_ABE_FW_TASK_SRC44P1_MMDL_PP                       127
 #define C_ABE_FW_TASK_SRC44P1_MMDL_1211_PP                  128
-#define C_ABE_FW_TASK_CHECK_IIR_LEFT                        129
-#define C_ABE_FW_TASK_CHECK_IIR_RIGHT                       130
+#define C_ABE_FW_TASK_CHECK_IIR_LEFT_8K                     129
+#define C_ABE_FW_TASK_CHECK_IIR_RIGHT_8K                    130
 #define C_ABE_FW_TASK_BT_DL_48_8_LP_FIR                     131
 #define C_ABE_FW_TASK_BT_DL_48_8_FIR                        132
 #define C_ABE_FW_TASK_BT_DL_48_8_FIR_OPP100                 133
 #define C_ABE_FW_TASK_VX_UL_48_8_FIR                        134
 #define C_ABE_FW_TASK_VX_UL_48_8_LP_FIR                     135
+#define C_ABE_FW_TASK_CHECK_IIR_LEFT_16K                    136
+#define C_ABE_FW_TASK_CHECK_IIR_RIGHT_16K                   137
+#define C_ABE_FW_TASK_EARP_48_96_LP                         138
+#define C_ABE_FW_TASK_IHF_48_96_LP                          139
+#define C_ABE_FW_TASK_DMIC1_96_48_LP_NO_PRESCALE            140
+#define C_ABE_FW_TASK_DMIC2_96_48_LP_NO_PRESCALE            141
+#define C_ABE_FW_TASK_DMIC3_96_48_LP_NO_PRESCALE            142
+#define C_ABE_FW_TASK_DMIC1_96_48_LP_NP_OLD_COEFF           143
+#define C_ABE_FW_TASK_DMIC2_96_48_LP_NP_OLD_COEFF           144
+#define C_ABE_FW_TASK_DMIC3_96_48_LP_NP_OLD_COEFF           145
+/*
+ * Alternate firmware compatibility macros
+ */
+#if !defined(CONFIG_SND_OMAP4_ABE_USE_ALT_FW)
+#define C_ABE_FW_TASK_BT_DL_48_8_FIR_OPP100_FW_COMPAT       C_ABE_FW_TASK_BT_DL_48_8_FIR_OPP100
+#define C_ABE_FW_TASK_BT_DL_48_8_FIR_FW_COMPAT              C_ABE_FW_TASK_BT_DL_48_8_FIR
+#else
+#define C_ABE_FW_TASK_BT_DL_48_8_FIR_OPP100_FW_COMPAT       C_ABE_FW_TASK_BT_DL_48_8_OPP100
+#define C_ABE_FW_TASK_BT_DL_48_8_FIR_FW_COMPAT              C_ABE_FW_TASK_BT_DL_48_8
+#endif
 #endif /* _ABE_TASKID_H_ */

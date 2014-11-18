@@ -102,6 +102,10 @@
 
 #include "musb_core.h"
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+#include <mach/omap4-common.h>
+#endif
+
 #define TA_WAIT_BCON(m) max_t(int, (m)->a_wait_bcon, OTG_TIME_A_WAIT_BCON)
 
 
@@ -296,26 +300,6 @@ void musb_read_fifo(struct musb_hw_ep *hw_ep, u16 len, u8 *dst)
 
 /*-------------------------------------------------------------------------*/
 
-/* for high speed test mode; see USB 2.0 spec 7.1.20 */
-static const u8 musb_test_packet[53] = {
-	/* implicit SYNC then DATA0 to start */
-
-	/* JKJKJKJK x9 */
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	/* JJKKJJKK x8 */
-	0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
-	/* JJJJKKKK x8 */
-	0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
-	/* JJJJJJJKKKKKKK x8 */
-	0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	/* JJJJJJJK x8 */
-	0x7f, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd,
-	/* JKKKKKKK x10, JK */
-	0xfc, 0x7e, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd, 0x7e
-
-	/* implicit CRC16 then EOP to end */
-};
-
 void musb_load_testpacket(struct musb *musb)
 {
 	void __iomem	*regs = musb->endpoints[0].regs;
@@ -420,6 +404,9 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 {
 	irqreturn_t handled = IRQ_NONE;
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	musb->event = -1;
+#endif
 	dev_dbg(musb->controller, "<== Power=%02x, DevCtl=%02x, int_usb=0x%x\n", power, devctl,
 		int_usb);
 
@@ -682,6 +669,9 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 
 		musb->ep0_stage = MUSB_EP0_START;
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		musb->event = USB_EVENT_ID;
+#endif
 #ifdef CONFIG_USB_MUSB_OTG
 		/* flush endpoints when transitioning from Device Mode */
 		if (is_peripheral_active(musb)) {
@@ -747,15 +737,21 @@ b_host:
 				MUSB_MODE(musb), devctl);
 		handled = IRQ_HANDLED;
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		musb->event = USB_EVENT_NONE;
+#endif
 		switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
 		case OTG_STATE_A_HOST:
 		case OTG_STATE_A_SUSPEND:
 			usb_hcd_resume_root_hub(musb_to_hcd(musb));
 			musb_root_disconnect(musb);
+			/* FIX: Multiple times hotplug with removal and connect
+			 * time-gap less than a second. "0" delay gives 7ms time
+			 * to call musb_do_idle
+			 */
 			if (musb->a_wait_bcon != 0 && is_otg_enabled(musb))
-				musb_platform_try_idle(musb, jiffies
-					+ msecs_to_jiffies(musb->a_wait_bcon));
+				musb_platform_try_idle(musb, 0);
 			break;
 #endif	/* HOST */
 #ifdef CONFIG_USB_MUSB_OTG
@@ -813,6 +809,9 @@ b_host:
 		} else if (is_peripheral_capable()) {
 			dev_dbg(musb->controller, "BUS RESET as %s\n",
 				otg_state_string(musb->xceiv->state));
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+				musb->event = USB_EVENT_VBUS;
+#endif
 			switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_OTG
 			case OTG_STATE_A_SUSPEND:
@@ -937,15 +936,18 @@ void musb_start(struct musb *musb)
 	devctl = musb_readb(regs, MUSB_DEVCTL);
 	devctl &= ~MUSB_DEVCTL_SESSION;
 
+	/* Detects cold-boot scenario using omap2430_musb_enable() */
+	musb_platform_enable(musb);
+
 	if (is_otg_enabled(musb)) {
 		/* session started after:
 		 * (a) ID-grounded irq, host mode;
 		 * (b) vbus present/connect IRQ, peripheral mode;
 		 * (c) peripheral initiates, using SRP
 		 */
-		if ((devctl & MUSB_DEVCTL_VBUS) == MUSB_DEVCTL_VBUS)
+		if (musb->xceiv->last_event == USB_EVENT_VBUS)
 			musb->is_active = 1;
-		else if (musb->xceiv->state == OTG_STATE_A_HOST)
+		else if (musb->xceiv->last_event == USB_EVENT_ID)
 			devctl |= MUSB_DEVCTL_SESSION;
 
 	} else if (is_host_enabled(musb)) {
@@ -953,10 +955,9 @@ void musb_start(struct musb *musb)
 		devctl |= MUSB_DEVCTL_SESSION;
 
 	} else /* peripheral is enabled */ {
-		if ((devctl & MUSB_DEVCTL_VBUS) == MUSB_DEVCTL_VBUS)
+		if (musb->xceiv->last_event == USB_EVENT_VBUS)
 			musb->is_active = 1;
 	}
-	musb_platform_enable(musb);
 	musb_writeb(regs, MUSB_DEVCTL, devctl);
 }
 
@@ -1507,6 +1508,10 @@ static int __init musb_core_init(u16 musb_type, struct musb *musb)
 			dev_dbg(musb->controller, "hw_ep %d not configured\n", i);
 	}
 
+#ifdef CONFIG_USB_MUSB_HSET
+	musb_init_hset("driver/musb_HSET", musb);
+#endif
+
 	return 0;
 }
 
@@ -1819,6 +1824,14 @@ static void musb_irq_work(struct work_struct *data)
 		old_state = musb->xceiv->state;
 		sysfs_notify(&musb->controller->kobj, NULL, "mode");
 	}
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	if (USB_EVENT_VBUS == musb->event)
+		omap4_dpll_cascading_blocker_hold(musb->controller);
+	else if (USB_EVENT_ID == musb->event)
+		omap4_dpll_cascading_blocker_hold(musb->controller);
+	else if (USB_EVENT_NONE == musb->event)
+		omap4_dpll_cascading_blocker_release(musb->controller);
+#endif
 }
 
 /* --------------------------------------------------------------------------
@@ -2006,6 +2019,7 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 
 	/* Init IRQ workqueue before request_irq */
 	INIT_WORK(&musb->irq_work, musb_irq_work);
+	INIT_WORK(&musb->hz_mode_work, musb_hz_mode_work);
 
 	/* attach to the IRQ */
 	if (request_irq(nIrq, musb->isr, 0, dev_name(dev), musb)) {
@@ -2051,6 +2065,7 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 		status = usb_add_hcd(musb_to_hcd(musb), -1, 0);
 
 		hcd->self.uses_pio_for_control = 1;
+		hcd->self.dma_align = 1;
 		dev_dbg(musb->controller, "%s mode, status %d, devctl %02x %c\n",
 			"HOST", status,
 			musb_readb(musb->mregs, MUSB_DEVCTL),

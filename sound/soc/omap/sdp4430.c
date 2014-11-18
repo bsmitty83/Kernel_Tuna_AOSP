@@ -416,6 +416,10 @@ static int sdp4430_set_pdm_dl1_gains(struct snd_soc_dapm_context *dapm)
 		else
 			/* HSDACL in HP mode */
 			output = OMAP_ABE_DL1_HEADSET_HP;
+#if !defined(CONFIG_SND_OMAP_SOC_ABE_DL2)
+	} else if (snd_soc_dapm_get_pin_power(dapm, "Ext Spk")) {
+		output = OMAP_ABE_DL1_HANDSFREE;
+#endif
 	} else {
 		output = OMAP_ABE_DL1_NO_PDM;
 	}
@@ -922,6 +926,22 @@ static struct snd_soc_dai_link sdp4430_dai[] = {
 		.be_hw_params_fixup = mcbsp_be_hw_params_fixup,
 		.ops = &sdp4430_mcbsp_ops,
 		.be_id = OMAP_ABE_DAI_MODEM,
+		.ignore_suspend = 1,
+	},
+	{
+		.name = OMAP_ABE_BE_VXREC,
+		.stream_name = "VXREC Capture",
+
+		/* ABE components - VxREC */
+		.cpu_dai_name = "omap-abe-vxrec-dai",
+		.platform_name = "aess",
+
+		/* no codec needed */
+		.codec_dai_name = "null-codec-dai",
+
+		.no_pcm = 1, /* don't create ALSA pcm for this */
+		.no_codec = 1,
+		.be_id = OMAP_ABE_DAI_VXREC,
 		.ignore_suspend = 1,
 	},
 };

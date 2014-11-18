@@ -35,6 +35,56 @@ void hsi_reset_ch_write(struct hsi_channel *ch)
 	ch->write_data.lch = -1;
 }
 
+/* Check if a Write (data transfer from AP to CP) or
+ * Read (data transfer from CP to AP) is
+ * ongoing for a given HSI channel
+ */
+bool hsi_is_channel_transfer_ongoing(struct hsi_channel *ch)
+{
+	if ((ch->write_data.addr == NULL) && (ch->read_data.addr == NULL))
+		return false;
+
+	return true;
+}
+
+/* Check if a Write (data transfer from AP to CP) or
+ * Read (data transfer from CP to AP) is
+ * ongoing in given HSI port
+ */
+bool hsi_is_port_transfer_ongoing(struct hsi_port *pport)
+{
+	struct hsi_dev *hsi_ctrl = pport->hsi_controller;
+	int ch;
+
+	for (ch = 0; ch < pport->max_ch; ch++)
+		if (hsi_is_channel_transfer_ongoing(&pport->hsi_channel[ch])) {
+			dev_dbg(hsi_ctrl->dev, "Port %d; channel %d transfer"
+				"ongoing\n", pport->port_number, ch);
+			return true;
+		}
+
+	return false;
+}
+
+/* Check if a Write (data transfer from AP to CP) or
+ * Read (data transfer from CP to AP) is
+ * ongoing in whole HSI controller
+ */
+bool hsi_is_controller_transfer_ongoing(struct hsi_dev *hsi_ctrl)
+{
+	int port;
+
+	for (port = 0; port < hsi_ctrl->max_p; port++)
+		if (hsi_is_port_transfer_ongoing(&hsi_ctrl->hsi_port[port])) {
+			dev_dbg(hsi_ctrl->dev, "Transfer ongoing in Port %d\n",
+				port + 1);
+			return true;
+		}
+
+	dev_dbg(hsi_ctrl->dev, "No Transfer ongoing in HSI controller\n");
+	return false;
+}
+
 /* Check if a Write (data transfer from AP to CP) is
  * ongoing for a given HSI channel
  */
@@ -409,8 +459,7 @@ static void hsi_do_channel_rx(struct hsi_channel *ch)
 		fifo_words_avail = hsi_get_rx_fifo_occupancy(hsi_ctrl, fifo);
 		if (!fifo_words_avail) {
 			dev_dbg(hsi_ctrl->dev,
-				"WARNING: RX FIFO %d empty before CPU copy\n",
-				fifo);
+				"RX FIFO %d empty before CPU copy\n", fifo);
 
 			/* Do not disable interrupt becaue another interrupt */
 			/* can still come, this time with a real frame. */
@@ -489,14 +538,6 @@ int hsi_do_cawake_process(struct hsi_port *pport)
 	/* Deal with init condition */
 	if (unlikely(pport->cawake_status < 0))
 		pport->cawake_status = !cawake_status;
-	dev_dbg(hsi_ctrl->dev, "%s: Interrupts are not enabled but CAWAKE came."
-		"hsi: port[%d] irq[%d] irq_en=0x%08x dma_irq_en=0x%08x\n",
-		__func__, pport->port_number, pport->n_irq,
-		hsi_inl(pport->hsi_controller->base,
-			HSI_SYS_MPU_ENABLE_REG(pport->port_number,
-					pport->n_irq)),
-		hsi_inl(pport->hsi_controller->base,
-			HSI_SYS_GDD_MPU_IRQ_ENABLE_REG));
 
 	/* Check CAWAKE line status */
 	if (cawake_status) {
@@ -611,7 +652,8 @@ static u32 hsi_driver_int_proc(struct hsi_port *pport,
 		status_reg |= HSI_CAWAKEDETECTED;
 
 	if (pport->cawake_off_event) {
-		dev_dbg(hsi_ctrl->dev, "CAWAKE detected from OFF mode.\n");
+		dev_dbg(hsi_ctrl->dev, "CAWAKE detected from IO daisy on port "
+				       "%d\n", port);
 	} else if (!status_reg) {
 		dev_dbg(hsi_ctrl->dev, "Channels [%d,%d] : no event, exit.\n",
 			start, stop);
@@ -761,11 +803,11 @@ static irqreturn_t hsi_mpu_handler(int irq, void *p)
 	if (test_and_set_bit(HSI_FLAGS_TASKLET_LOCK, &pport->flags))
 		return IRQ_HANDLED;
 
-		tasklet_hi_schedule(&pport->hsi_tasklet);
+	tasklet_hi_schedule(&pport->hsi_tasklet);
 
 	/* Disable interrupt until Bottom Half has cleared the IRQ status */
 	/* register */
-		disable_irq_nosync(pport->irq);
+	disable_irq_nosync(pport->irq);
 
 	return IRQ_HANDLED;
 }

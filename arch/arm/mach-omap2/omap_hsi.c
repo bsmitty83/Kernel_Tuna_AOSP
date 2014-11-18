@@ -237,8 +237,8 @@ static int omap_hsi_is_io_pad_hsi(int hsi_port)
 * @hsi_port - returns port number which triggered wakeup. Range [1, 2].
 *	      Only valid if return value is 1 (HSI wakeup detected)
 *
-* Return value :* false if CAWAKE Padconf has not been found or no IOWAKEUP event
-*		occured for CAWAKE.
+* Return value :* false if CAWAKE Padconf has not been found or no IOWAKEUP
+*		event occured for CAWAKE.
 *		* true if HSI wakeup detected on port *hsi_port
 */
 bool omap_hsi_is_io_wakeup_from_hsi(int *hsi_port)
@@ -409,9 +409,6 @@ int omap_hsi_wakeup(int hsi_port)
 			     &hsi_ctrl->hsi_port[i].flags))
 		return -EBUSY;
 
-	dev_dbg(hsi_ctrl->dev, "Modem wakeup detected from HSI CAWAKE Pad port "
-			       "%d\n", hsi_port);
-
 	/* CAWAKE falling or rising edge detected */
 	hsi_ctrl->hsi_port[i].cawake_off_event = true;
 	tasklet_hi_schedule(&hsi_ctrl->hsi_port[i].hsi_tasklet);
@@ -520,6 +517,7 @@ int __init omap_hsi_dev_init(void)
 	return omap_hwmod_for_each_by_class(OMAP_HSI_HWMOD_CLASSNAME,
 					    omap_hsi_register, NULL);
 }
+
 postcore_initcall(omap_hsi_dev_init);
 
 /* HSI devices registration */

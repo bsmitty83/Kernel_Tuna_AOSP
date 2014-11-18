@@ -2,6 +2,21 @@
 # Makefile for the linux kernel.
 #
 
+# FIXME: For OMAP4 target - the sequence of Obj-files inclusion in
+# 	Makefile is strictly related to sequence of the Kernel xxx_initcall
+# 	functions calls. Any changes in the sequence of Obj-files inclusion
+# 	in this file should be done carefully and can cause unpredictable
+# 	system behaviour - especially it can have impact on OMAP4 PM
+# 	initialization procedure.
+#
+# Known valid sequence:
+# 	- pm.o
+# 	- sr_device.o
+# 	- smartreflex.o
+# 	- smartreflex-class3.o
+# 	- smartreflex-class1p5.o
+# 	- pm44xx.o
+
 # Common support
 obj-y := id.o io.o control.o mux.o devices.o serial.o gpmc.o timer-gp.o pm.o \
 	 common.o gpio.o dma.o wd_timer.o omap_pmic.o dmtimer.o
@@ -22,6 +37,7 @@ obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 obj-$(CONFIG_TWL4030_CORE) += omap_twl.o
 obj-$(CONFIG_OMAP_TPS6236X) += omap_tps6236x.o
 obj-$(CONFIG_OMAP_TEMP_SENSOR) +=temp_sensor_device.o
+obj-$(CONFIG_OMAP4_PCB_SENSOR) += pcb_temp_sensor_device.o
 
 # SMP support ONLY available for OMAP4
 obj-$(CONFIG_SMP)			+= omap-smp.o omap-headsmp.o
@@ -60,6 +76,11 @@ obj-$(CONFIG_ARCH_OMAP3)		+= opp3xxx_data.o
 obj-$(CONFIG_ARCH_OMAP4)		+= opp4xxx_data.o
 endif
 
+# Smartreflex AVS initialization
+obj-$(CONFIG_OMAP_SMARTREFLEX)          += sr_device.o smartreflex.o
+obj-$(CONFIG_OMAP_SMARTREFLEX_CLASS3)	+= smartreflex-class3.o
+obj-$(CONFIG_OMAP_SMARTREFLEX_CLASS1P5)	+= smartreflex-class1p5.o
+
 # CPUFREQ driver
 obj-$(CONFIG_CPU_FREQ)			+= omap2plus-cpufreq.o
 
@@ -76,9 +97,6 @@ obj-$(CONFIG_PM_DEBUG)			+= pm-debug.o
 ifeq ($(CONFIG_PM_DEBUG),y)
 obj-$(CONFIG_ARCH_OMAP4)		+= prcm-debug.o
 endif
-obj-$(CONFIG_OMAP_SMARTREFLEX)          += sr_device.o smartreflex.o
-obj-$(CONFIG_OMAP_SMARTREFLEX_CLASS3)	+= smartreflex-class3.o
-obj-$(CONFIG_OMAP_SMARTREFLEX_CLASS1P5)	+= smartreflex-class1p5.o
 
 AFLAGS_sleep24xx.o			:=-Wa,-march=armv6
 AFLAGS_sleep34xx.o			:=-Wa,-march=armv7-a$(plus_sec)
@@ -249,10 +267,31 @@ obj-$(CONFIG_MACH_IGEP0020)		+= board-igep0020.o \
 obj-$(CONFIG_MACH_OMAP3_TOUCHBOOK)	+= board-omap3touchbook.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_OMAP_4430SDP)		+= board-4430sdp.o \
+					   board-blaze-touch.o \
+					   board-blaze-panel.o \
+					   board-blaze-keypad.o \
+					   board-blaze-sensors.o \
+					   board-blaze-modem.o \
+					   board-44xx-identity.o \
+					   board-44xx-power.o \
+					   board-44xx-serial.o \
 					   hsmmc.o \
-					   omap_phy_internal.o
+					   omap_phy_internal.o \
+					   omap4_apps_brd_id.o
+obj-$(CONFIG_MACH_OMAP_BLAZE)		+= board-44xx-tablet.o \
+					   board-44xx-identity.o \
+					   board-44xx-power.o \
+					   board-44xx-serial.o \
+					   board-44xx-tablet-touch.o \
+					   board-44xx-tablet-sensors.o \
+					   board-44xx-tablet-panel.o \
+					   board-44xx-tablet-buttons.o \
+					   omap4_apps_brd_id.o
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_TTSP)  += board-touch-cyttsp4_core.o
 obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o \
 					   hsmmc.o \
+					   board-44xx-identity.o \
+					   omap4_apps_brd_id.o \
 					   omap_phy_internal.o
 obj-$(CONFIG_MACH_TUNA)			+= board-tuna.o \
 					   hsmmc.o \
@@ -307,7 +346,17 @@ obj-y					+= $(disp-m) $(disp-y)
 obj-y					+= common-board-devices.o
 
 obj-$(CONFIG_OMAP_REMOTE_PROC)		+= remoteproc.o
+
 obj-$(CONFIG_OMAP_HSI_DEVICE)		+= omap_hsi.o
+obj-$(CONFIG_ION_OMAP)			+= omap4_ion.o
 obj-$(CONFIG_SEC_MODEM)			+= board-tuna-modems.o
 obj-$(CONFIG_ARCH_OMAP4)		+= omap_dmm.o
 obj-$(CONFIG_OMAP_FIQ_DEBUGGER)		+= omap_fiq_debugger.o
+
+ifeq ($(CONFIG_OMAP_REBOOT_REASON),y)
+obj-$(CONFIG_ARCH_OMAP4)		+= omap4-reboot-reason.o
+endif
+
+obj-$(CONFIG_OMAP_RAM_CONSOLE)		+= omap_ram_console.o
+obj-$(CONFIG_ARCH_OMAP4)		+= omap_gcxxx.o
+obj-$(CONFIG_OMAP_RFKILL_STE_MODEM)	+= omap-rfkill-ste.o

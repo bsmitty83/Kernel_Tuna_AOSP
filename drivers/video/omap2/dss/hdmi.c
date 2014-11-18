@@ -391,8 +391,16 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		dssdev->panel.timings.y_res);
 
 	if (!hdmi.custom_set) {
-		struct fb_videomode vesa_vga = vesa_modes[4];
-		hdmi_set_timings(&vesa_vga, false);
+		u32 cea_code = 0;
+		struct fb_videomode default_mode;
+
+		cea_code = dssdev->panel.hdmi_default_cea_code;
+		if (cea_code > 0 && cea_code < CEA_MODEDB_SIZE)
+			default_mode = cea_modes[cea_code];
+		else
+			default_mode = vesa_modes[4];
+
+		hdmi_set_timings(&default_mode, false);
 	}
 
 	omapfb_fb2dss_timings(&hdmi.cfg.timings, &dssdev->panel.timings);
@@ -474,13 +482,18 @@ err:
 
 static void hdmi_power_off(struct omap_dss_device *dssdev)
 {
+	enum hdmi_pwrchg_reasons reason = HDMI_PWRCHG_DEFAULT;
 	if (hdmi.hdmi_irq_cb)
 		hdmi.hdmi_irq_cb(HDMI_HPD_LOW);
 
 	hdmi_ti_4xxx_wp_video_start(&hdmi.hdmi_data, 0);
 
 	dispc_enable_channel(OMAP_DSS_CHANNEL_DIGIT, dssdev->type, 0);
-	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data, hdmi.set_mode);
+	if (hdmi.set_mode)
+		reason = reason | HDMI_PWRCHG_MODE_CHANGE;
+	if (dssdev->sync_lost_error)
+		reason = reason | HDMI_PWRCHG_RESYNC;
+	hdmi_ti_4xxx_phy_off(&hdmi.hdmi_data, reason);
 	hdmi_ti_4xxx_set_pll_pwr(&hdmi.hdmi_data, HDMI_PLLPWRCMD_ALLOFF);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;

@@ -416,6 +416,15 @@ void dsi_bus_unlock(struct omap_dss_device *dssdev)
 }
 EXPORT_SYMBOL(dsi_bus_unlock);
 
+bool dsi_bus_was_unlocked(struct omap_dss_device *dssdev)
+{
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
+
+	return dsi->bus_lock.count == 1;
+}
+EXPORT_SYMBOL(dsi_bus_was_unlocked);
+
 static bool dsi_bus_is_locked(struct platform_device *dsidev)
 {
 	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
@@ -3022,6 +3031,9 @@ err1:
 err0:
 	return r;
 }
+
+
+
 EXPORT_SYMBOL(dsi_vc_send_bta_sync);
 
 static inline void dsi_vc_write_long_header(struct platform_device *dsidev,
@@ -4173,6 +4185,7 @@ int omap_dsi_prepare_update(struct omap_dss_device *dssdev,
 {
 	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
 	u16 dw, dh;
+	int r = 0;
 
 	dssdev->driver->get_resolution(dssdev, &dw, &dh);
 
@@ -4194,12 +4207,13 @@ int omap_dsi_prepare_update(struct omap_dss_device *dssdev,
 	dsi_perf_mark_setup(dsidev);
 
 	if (dssdev->manager->caps & OMAP_DSS_OVL_MGR_CAP_DISPC) {
-		dss_setup_partial_planes(dssdev, x, y, w, h,
+		r = dss_setup_partial_planes(dssdev, x, y, w, h,
 				enlarge_update_area);
-		dispc_set_lcd_size(dssdev->manager->id, *w, *h);
+		if (0 == r)
+			dispc_set_lcd_size(dssdev->manager->id, *w, *h);
 	}
 
-	return 0;
+	return r;
 }
 EXPORT_SYMBOL(omap_dsi_prepare_update);
 

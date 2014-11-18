@@ -49,6 +49,18 @@
 #define THREAD_INFO(sp) ((struct thread_info *) \
 		((unsigned long)(sp) & ~(THREAD_SIZE - 1)))
 
+#ifndef CONFIG_PRINTK
+static int do_syslog(int type, char __user *bug, int count)
+{
+	return -1;
+}
+
+static int log_buf_copy(char *dest, int idx, int len)
+{
+	return -1;
+}
+#endif
+
 struct fiq_debugger_state {
 	struct fiq_glue_handler handler;
 
@@ -190,7 +202,6 @@ static void debug_prompt(struct fiq_debugger_state *state)
 	debug_puts(state, "debug> ");
 }
 
-int log_buf_copy(char *dest, int idx, int len);
 static void dump_kernel_log(struct fiq_debugger_state *state)
 {
 	char buf[1024];
@@ -356,8 +367,7 @@ static void dump_allregs(struct fiq_debugger_state *state, unsigned *regs)
 
 static void dump_irqs(struct fiq_debugger_state *state)
 {
-	int n;
-	unsigned int cpu;
+	unsigned int n;
 
 	debug_printf(state, "irqnr       total  since-last   status  name\n");
 	for (n = 0; n < NR_IRQS; n++) {
@@ -372,15 +382,17 @@ static void dump_irqs(struct fiq_debugger_state *state)
 		state->last_irqs[n] = kstat_irqs(n);
 	}
 
-	for (cpu = 0; cpu < NR_CPUS; cpu++) {
+#ifdef CONFIG_LOCAL_TIMERS
+	for (n = 0; n < NR_CPUS; n++) {
 
-		debug_printf(state, "LOC %d: %10u %11u\n", cpu,
-			     __IRQ_STAT(cpu, local_timer_irqs),
-			     __IRQ_STAT(cpu, local_timer_irqs) -
-			     state->last_local_timer_irqs[cpu]);
-		state->last_local_timer_irqs[cpu] =
-			__IRQ_STAT(cpu, local_timer_irqs);
+		debug_printf(state, "LOC %d: %10u %11u\n", n,
+			     __IRQ_STAT(n, local_timer_irqs),
+			     __IRQ_STAT(n, local_timer_irqs) -
+			     state->last_local_timer_irqs[n]);
+		state->last_local_timer_irqs[n] =
+			__IRQ_STAT(n, local_timer_irqs);
 	}
+#endif
 }
 
 struct stacktrace_state {
@@ -508,7 +520,6 @@ static void end_syslog_dump(struct fiq_debugger_state *state)
 	state->syslog_dumping = false;
 }
 #else
-extern int do_syslog(int type, char __user *bug, int count);
 static void begin_syslog_dump(struct fiq_debugger_state *state)
 {
 	do_syslog(5 /* clear */, NULL, 0);

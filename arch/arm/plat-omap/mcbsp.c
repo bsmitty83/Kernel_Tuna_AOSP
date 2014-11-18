@@ -225,6 +225,7 @@ void omap_mcbsp_config(unsigned int id, const struct omap_mcbsp_reg_cfg *config)
 	if (cpu_is_omap2430() || cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		MCBSP_WRITE(mcbsp, XCCR, config->xccr);
 		MCBSP_WRITE(mcbsp, RCCR, config->rccr);
+		MCBSP_WRITE(mcbsp, WAKEUPEN, XRDYEN | RRDYEN);
 	}
 }
 EXPORT_SYMBOL(omap_mcbsp_config);
@@ -725,20 +726,6 @@ int omap_mcbsp_get_dma_op_mode(unsigned int id)
 }
 EXPORT_SYMBOL(omap_mcbsp_get_dma_op_mode);
 
-static inline void omap34xx_mcbsp_request(struct omap_mcbsp *mcbsp)
-{
-	struct omap_device *od;
-
-	od = find_omap_device_by_dev(mcbsp->dev);
-	/*
-	 * Enable wakup behavior, smart idle and all wakeups
-	 * REVISIT: some wakeups may be unnecessary
-	 */
-	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
-		MCBSP_WRITE(mcbsp, WAKEUPEN, XRDYEN | RRDYEN);
-	}
-}
-
 static inline void omap34xx_mcbsp_free(struct omap_mcbsp *mcbsp)
 {
 	struct omap_device *od;
@@ -759,7 +746,6 @@ static inline void omap34xx_mcbsp_free(struct omap_mcbsp *mcbsp)
 	}
 }
 #else
-static inline void omap34xx_mcbsp_request(struct omap_mcbsp *mcbsp) {}
 static inline void omap34xx_mcbsp_free(struct omap_mcbsp *mcbsp) {}
 #endif
 
@@ -828,9 +814,6 @@ int omap_mcbsp_request(unsigned int id)
 
 	pm_runtime_get_sync(mcbsp->dev);
 
-	/* Do procedure specific to omap34xx arch, if applicable */
-	omap34xx_mcbsp_request(mcbsp);
-
 	/*
 	 * Make sure that transmitter, receiver and sample-rate generator are
 	 * not running before activating IRQs.
@@ -850,7 +833,7 @@ int omap_mcbsp_request(unsigned int id)
 			goto err_clk_disable;
 		}
 
-		if (mcbsp->rx_irq) {
+		if (mcbsp->rx_irq > 0) {
 			init_completion(&mcbsp->rx_irq_completion);
 			err = request_irq(mcbsp->rx_irq,
 					omap_mcbsp_rx_irq_handler,
@@ -908,7 +891,7 @@ void omap_mcbsp_free(unsigned int id)
 
 	if (mcbsp->io_type == OMAP_MCBSP_IRQ_IO) {
 		/* Free IRQs */
-		if (mcbsp->rx_irq)
+		if (mcbsp->rx_irq > 0)
 			free_irq(mcbsp->rx_irq, (void *)mcbsp);
 		free_irq(mcbsp->tx_irq, (void *)mcbsp);
 	}

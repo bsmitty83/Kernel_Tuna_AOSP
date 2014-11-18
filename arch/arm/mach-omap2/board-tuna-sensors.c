@@ -17,7 +17,14 @@
 #include <linux/i2c.h>
 #include <linux/mpu.h>
 #include <linux/gp2a.h>
+
+#if defined(CONFIG_TWL6030_GPADC)
+#include <linux/i2c/twl6030-gpadc.h>
+#elif defined(CONFIG_TWL4030_MADC)
+#include <linux/i2c/twl4030-madc.h>
+#else /* CONFIG_TWL6030_MADC */
 #include <linux/i2c/twl6030-madc.h>
+#endif
 
 #include "mux.h"
 #include "board-tuna.h"
@@ -33,7 +40,13 @@
 
 static int gp2a_light_adc_value(void)
 {
+#if defined(CONFIG_TWL6030_GPADC)
+	return twl6030_get_gpadc_conversion(GP2A_LIGHT_ADC_CHANNEL);
+#elif defined(CONFIG_TWL4030_MADC)
+	return twl4030_get_madc_conversion(GP2A_LIGHT_ADC_CHANNEL);
+#else /* CONFIG_TWL6030_MADC */
 	return twl6030_get_madc_conversion(GP2A_LIGHT_ADC_CHANNEL);
+#endif
 }
 
 static void gp2a_power(bool on)
@@ -170,7 +183,12 @@ static void omap4_tuna_fixup_orientations_maguro(int revision)
 
 static void omap4_tuna_fixup_orientations_toro(int revision)
 {
-	if (revision >= 2) {
+	pr_info("HW %d", revision);
+	if (revision >= 14) {
+		rotcpy(mpu_data.orientation, orientation_back_left_90);
+		rotcpy(mpu_data.accel.orientation, orientation_back);
+		rotcpy(mpu_data.compass.orientation, orientation_back);
+	} else if (revision >= 2) {
 		rotcpy(mpu_data.orientation, orientation_back_left_90);
 		rotcpy(mpu_data.accel.orientation, orientation_back);
 		rotcpy(mpu_data.compass.orientation, orientation_back_180);

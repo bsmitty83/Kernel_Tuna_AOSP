@@ -26,6 +26,7 @@
 #include <linux/memblock.h>
 #include <linux/omap_ion.h>
 #include <linux/usb/otg.h>
+#include <linux/hwspinlock.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
@@ -38,7 +39,6 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 #include <linux/platform_data/lte_modem_bootloader.h>
-#include <linux/platform_data/ram_console.h>
 #include <plat/mcspi.h>
 #include <linux/i2c-gpio.h>
 #include <linux/earlysuspend.h>
@@ -62,6 +62,7 @@
 #include <mach/omap_fiq_debugger.h>
 
 #include <mach/id.h>
+#include <mach/omap4_ion.h>
 #include "timer-gp.h"
 
 #include "omap4-sar-layout.h"
@@ -69,11 +70,9 @@
 #include "control.h"
 #include "mux.h"
 #include "board-tuna.h"
+#include "omap_ram_console.h"
 #include "resetreason.h"
 #include <mach/dmm.h>
-
-#define TUNA_RAMCONSOLE_START	(PLAT_PHYS_OFFSET + SZ_512M)
-#define TUNA_RAMCONSOLE_SIZE	SZ_2M
 
 struct class *sec_class;
 EXPORT_SYMBOL(sec_class);
@@ -131,6 +130,8 @@ static const char const *omap4_tuna_hw_name_toro[] = {
 	[0x06] = "Toro 8th Sample",
 	[0x08] = "Toro 8th Sample",
 	[0x09] = "Toro 8-1th Sample",
+	[0x0a] = "Toro 8-2th Sample",
+	[0x0e] = "Toroplus 1st Sample",
 };
 
 int omap4_tuna_get_revision(void)
@@ -214,26 +215,6 @@ static struct platform_device wl1271_device = {
 	},
 };
 
-static struct resource ramconsole_resources[] = {
-	{
-		.flags  = IORESOURCE_MEM,
-		.start	= TUNA_RAMCONSOLE_START,
-		.end	= TUNA_RAMCONSOLE_START + TUNA_RAMCONSOLE_SIZE - 1,
-	},
-};
-
-static struct ram_console_platform_data ramconsole_pdata;
-
-static struct platform_device ramconsole_device = {
-	.name           = "ram_console",
-	.id             = -1,
-	.num_resources  = ARRAY_SIZE(ramconsole_resources),
-	.resource       = ramconsole_resources,
-	.dev		= {
-		.platform_data = &ramconsole_pdata,
-	},
-};
-
 static struct platform_device bcm4330_bluetooth_device = {
 	.name = "bcm4330_bluetooth",
 	.id = -1,
@@ -282,64 +263,14 @@ static struct platform_device tuna_gpio_i2c5_device = {
 	}
 };
 
-#define PHYS_ADDR_SMC_SIZE			(SZ_1M * 3)
-#define PHYS_ADDR_DUCATI_SIZE			(SZ_1M * 105)
-#define OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE	(SZ_1M * 90)
-#define OMAP_TUNA_ION_HEAP_TILER_SIZE		(SZ_1M * 81)
-#define OMAP_TUNA_ION_HEAP_NONSECURE_TILER_SIZE	(SZ_1M * 15)
-
-#define PHYS_ADDR_SMC_MEM	(0x80000000 + SZ_1G - PHYS_ADDR_SMC_SIZE)
-#define PHYS_ADDR_DUCATI_MEM	(PHYS_ADDR_SMC_MEM - \
-				 PHYS_ADDR_DUCATI_SIZE - \
-				 OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE)
-
-static struct ion_platform_data tuna_ion_data = {
-	.nr = 3,
-	.heaps = {
-		{
-			.type = ION_HEAP_TYPE_CARVEOUT,
-			.id   = OMAP_ION_HEAP_SECURE_INPUT,
-			.name = "secure_input",
-			.base = PHYS_ADDR_SMC_MEM -
-					OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
-			.size = OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE,
-		},
-		{	.type = OMAP_ION_HEAP_TYPE_TILER,
-			.id   = OMAP_ION_HEAP_TILER,
-			.name = "tiler",
-			.base = PHYS_ADDR_DUCATI_MEM -
-					OMAP_TUNA_ION_HEAP_TILER_SIZE,
-			.size = OMAP_TUNA_ION_HEAP_TILER_SIZE,
-		},
-		{	.type = OMAP_ION_HEAP_TYPE_TILER,
-			.id   = OMAP_ION_HEAP_NONSECURE_TILER,
-			.name = "nonsecure_tiler",
-			.base = PHYS_ADDR_DUCATI_MEM -
-					OMAP_TUNA_ION_HEAP_TILER_SIZE -
-					OMAP_TUNA_ION_HEAP_NONSECURE_TILER_SIZE,
-			.size = OMAP_TUNA_ION_HEAP_NONSECURE_TILER_SIZE,
-		},
-	},
-};
-
-static struct platform_device tuna_ion_device = {
-	.name = "ion-omap4",
-	.id = -1,
-	.dev = {
-		.platform_data = &tuna_ion_data,
-	},
-};
-
 static struct platform_device tuna_spdif_dit_device = {
 	.name		= "spdif-dit",
 	.id		= 0,
 };
 
 static struct platform_device *tuna_devices[] __initdata = {
-	&ramconsole_device,
 	&wl1271_device,
 	&twl6030_madc_device,
-	&tuna_ion_device,
 	&tuna_gpio_i2c5_device,
 	&tuna_spdif_dit_device,
 };
@@ -857,9 +788,42 @@ static struct i2c_board_info __initdata tuna_i2c4_boardinfo[] = {
 	},
 };
 
+static void __init omap_i2c_hwspinlock_init(int bus_id, int spinlock_id,
+				struct omap_i2c_bus_board_data *pdata)
+{
+/* spinlock_id should be -1 for a generic lock request */
+	if (spinlock_id < 0)
+		pdata->handle = hwspin_lock_request();
+	else
+		pdata->handle = hwspin_lock_request_specific(spinlock_id);
+
+	if (pdata->handle != NULL) {
+		pdata->hwspin_lock_timeout = hwspin_lock_timeout;
+		pdata->hwspin_unlock = hwspin_unlock;
+	} else {
+		pr_err("I2C hwspinlock request failed for bus %d\n", \
+								bus_id);
+	}
+}
+
+static struct omap_i2c_bus_board_data __initdata sdp4430_i2c_1_bus_pdata;
+static struct omap_i2c_bus_board_data __initdata sdp4430_i2c_2_bus_pdata;
+static struct omap_i2c_bus_board_data __initdata sdp4430_i2c_3_bus_pdata;
+static struct omap_i2c_bus_board_data __initdata sdp4430_i2c_4_bus_pdata;
+
 static int __init tuna_i2c_init(void)
 {
 	u32 r;
+
+	omap_i2c_hwspinlock_init(1, 0, &sdp4430_i2c_1_bus_pdata);
+	omap_i2c_hwspinlock_init(2, 1, &sdp4430_i2c_2_bus_pdata);
+	omap_i2c_hwspinlock_init(3, 2, &sdp4430_i2c_3_bus_pdata);
+	omap_i2c_hwspinlock_init(4, 3, &sdp4430_i2c_4_bus_pdata);
+
+	omap_register_i2c_bus_board_data(1, &sdp4430_i2c_1_bus_pdata);
+	omap_register_i2c_bus_board_data(2, &sdp4430_i2c_2_bus_pdata);
+	omap_register_i2c_bus_board_data(3, &sdp4430_i2c_3_bus_pdata);
+	omap_register_i2c_bus_board_data(4, &sdp4430_i2c_4_bus_pdata);
 
 	omap_mux_init_signal("sys_nirq1", OMAP_PIN_INPUT_PULLUP |
 						OMAP_WAKEUP_EN);
@@ -1150,18 +1114,6 @@ static int tuna_notifier_call(struct notifier_block *this,
 	 */
 	writel(flag, sar_base + SAR_BANK2_OFFSET - 0xC);
 
-#if defined(CONFIG_DSSCOMP) && defined(CONFIG_EARLYSUSPEND)
-	/*
-	 * HACK: Blank screen to avoid screen artifacts due to removal of
-	 * DSS/panel drivers shutdown in reboot path.
-	 */
-	{
-		extern void dsscomp_early_suspend(struct early_suspend *h);
-
-		dsscomp_early_suspend(NULL);
-	}
-#endif
-
 	return NOTIFY_DONE;
 }
 
@@ -1264,7 +1216,7 @@ static struct attribute_group tuna_board_prop_attr_group = {
 static void __init omap4_tuna_create_board_props(void)
 {
 	struct kobject *board_props_kobj;
-	struct kobject *soc_kobj;
+	struct kobject *soc_kobj = NULL;
 	int ret = 0;
 
 	board_props_kobj = kobject_create_and_add("board_properties", NULL);
@@ -1369,7 +1321,6 @@ static void __init tuna_init(void)
 	tuna_audio_init();
 	tuna_i2c_init();
 	tuna_gsd4t_gps_init();
-	ramconsole_pdata.bootinfo = omap4_get_resetreason();
 	platform_add_devices(tuna_devices, ARRAY_SIZE(tuna_devices));
 	board_serial_init();
 	tuna_bt_init();
@@ -1382,6 +1333,7 @@ static void __init tuna_init(void)
 	}
 	tuna_from_init();
 	omap_dmm_init();
+	omap4_register_ion();
 	omap4_tuna_display_init();
 	omap4_tuna_input_init();
 	omap4_tuna_nfc_init();
@@ -1413,28 +1365,34 @@ static void __init tuna_map_io(void)
 
 static void __init tuna_reserve(void)
 {
-	int i;
-	int ret;
+	omap_init_ram_size();
+
+#ifdef CONFIG_ION_OMAP
+	tuna_android_display_setup(get_omap_ion_platform_data());
+	omap_ion_init();
+#else
+	tuna_android_display_setup(NULL);
+#endif
+
+	omap_ram_console_init(OMAP_RAM_CONSOLE_START_DEFAULT,
+						OMAP_RAM_CONSOLE_SIZE_DEFAULT);
+
 
 	/* do the static reservations first */
-	memblock_remove(TUNA_RAMCONSOLE_START, TUNA_RAMCONSOLE_SIZE);
 	memblock_remove(PHYS_ADDR_SMC_MEM, PHYS_ADDR_SMC_SIZE);
 	memblock_remove(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE);
 
-	for (i = 0; i < tuna_ion_data.nr; i++)
-		if (tuna_ion_data.heaps[i].type == ION_HEAP_TYPE_CARVEOUT ||
-		    tuna_ion_data.heaps[i].type == OMAP_ION_HEAP_TYPE_TILER) {
-			ret = memblock_remove(tuna_ion_data.heaps[i].base,
-					      tuna_ion_data.heaps[i].size);
-			if (ret)
-				pr_err("memblock remove of %x@%lx failed\n",
-				       tuna_ion_data.heaps[i].size,
-				       tuna_ion_data.heaps[i].base);
-		}
-
 	/* ipu needs to recognize secure input buffer area as well */
 	omap_ipu_set_static_mempool(PHYS_ADDR_DUCATI_MEM, PHYS_ADDR_DUCATI_SIZE +
-					OMAP_TUNA_ION_HEAP_SECURE_INPUT_SIZE);
+					OMAP4_ION_HEAP_SECURE_INPUT_SIZE +
+					OMAP4_ION_HEAP_SECURE_OUTPUT_WFDHDCP_SIZE);
+
+#ifdef CONFIG_OMAP_REMOTE_PROC_DSP
+	memblock_remove(PHYS_ADDR_TESLA_MEM, PHYS_ADDR_TESLA_SIZE);
+	omap_dsp_set_static_mempool(PHYS_ADDR_TESLA_MEM,
+								PHYS_ADDR_TESLA_SIZE);
+#endif
+
 	omap_reserve();
 }
 

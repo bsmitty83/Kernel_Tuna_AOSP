@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/usb.h>
+#include <linux/power_supply.h>
 
 #include <plat/usb.h>
 #include "control.h"
@@ -42,19 +43,48 @@
 #define	SESSEND				BIT(3)
 #define	IDDIG				BIT(4)
 
+#define CONTROL_USB2PHYCORE		0x620
+#define CHARGER_TYPE_PS2		0x2
+#define CHARGER_TYPE_DEDICATED		0x4
+#define CHARGER_TYPE_HOST		0x5
+#define CHARGER_TYPE_PC			0x6
+#define USB2PHY_CHGDETECTED		BIT(13)
+#define USB2PHY_RESTARTCHGDET		BIT(15)
+#define USB2PHY_DISCHGDET		BIT(30)
+
 static struct clk *phyclk, *clk48m, *clk32k;
 static void __iomem *ctrl_base;
 static int usbotghs_control;
 
+#ifdef CONFIG_OMAP4_HSOTG_ED_CORRECTION
+#define OMAP4_HSOTG_SWTRIM_MASK		0xFFFF00FF
+#define OMAP4_HSOTG_REF_GEN_TEST_MASK	0xF8FFFFFF
+static void __iomem *hsotg_base;
+#endif
+
 int omap4430_phy_init(struct device *dev)
 {
+	u32 usb2phycore;
 	ctrl_base = ioremap(OMAP443X_SCM_BASE, SZ_1K);
+#ifdef CONFIG_OMAP4_HSOTG_ED_CORRECTION
+	hsotg_base = ioremap(OMAP44XX_HSUSB_OTG_BASE, SZ_16K);
+	if (!hsotg_base) {
+		dev_err(dev, "hsotg memory ioremap failed\n");
+		return -ENOMEM;
+	}
+
+#endif
 	if (!ctrl_base) {
 		pr_err("control module ioremap failed\n");
 		return -ENOMEM;
 	}
 	/* Power down the phy */
 	__raw_writel(PHY_PD, ctrl_base + CONTROL_DEV_CONF);
+
+	/* Disable charger detection by default */
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore |= USB2PHY_DISCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
 
 	if (!dev) {
 		iounmap(ctrl_base);
@@ -87,7 +117,75 @@ int omap4430_phy_init(struct device *dev)
 	return 0;
 }
 
-int omap4430_phy_set_clk(struct device *dev, int on)
+#ifdef CONFIG_OMAP4_HSOTG_ED_CORRECTION
+static void omap44xx_hsotg_ed_correction(void)
+{
+	u32 val;
+
+	/*
+	 * Software workaround #1
+	 * By this way we improve HS OTG
+	 * eye diagramm by 2-3%
+	 * Allow this change for all OMAP4 family
+	 */
+
+	/*
+	 * For prevent 4-bit shift issue
+	 * bit field SYNC2 of OCP2SCP_TIMING
+	 * should be set to value >6
+	 */
+
+	val = __raw_readl(hsotg_base + 0x2018);
+	val |= 0x0F;
+	__raw_writel(val, hsotg_base + 0x2018);
+
+	/*
+	 * USBPHY_ANA_CONFIG2[16:15] = RTERM_TEST = 11b
+	 */
+	val = __raw_readl(hsotg_base + 0x20D4);
+	val |= (3<<15);
+	__raw_writel(val, hsotg_base + 0x20D4);
+
+	/*
+	 * USBPHY_TERMINATION_CONTROL[13:11] = HS_CODE_SEL = 011b
+	 */
+	val = __raw_readl(hsotg_base + 0x2080);
+	val &= ~(7<<11);
+	val |= (3<<11);
+	__raw_writel(val, hsotg_base + 0x2080);
+
+	/*
+	 * Software workaround #2
+	 * Reducing interface output impedance
+	 * By this way we improve HS OTG eye diagramm by 8%
+	 * This change needed only for 4430 CPUs
+	 * because this change can impact Rx performance
+	 */
+
+	/*
+	 * Increase SWCAP trim code by 0x24
+	 * NOTE: Value should be between 0 and 0x24
+	 */
+	val = __raw_readl(hsotg_base + 0x20B8);
+	if (is_omap443x() && !(val & 0x8000)) {
+		val = min((val + (0x24<<8)), (val | (0x7F<<8))) | 0x8000;
+		__raw_writel(val, hsotg_base + 0x20B8);
+	}
+
+	/*
+	 * For 4460 and 4470 CPUs there is 10-15mV adjustable
+	 * improvement available via REF_GEN_TEST[26:24]=110
+	 */
+	if (is_omap446x() || is_omap447x()) {
+		val = __raw_readl(hsotg_base + 0x20D4);
+		val &= OMAP4_HSOTG_REF_GEN_TEST_MASK;
+		val |= (0x6<<24);
+		__raw_writel(val, hsotg_base + 0x20D4);
+	}
+}
+#endif
+
+static int omap4430_phy_set_clk(struct device *dev, int on)
 {
 	static int state;
 
@@ -97,7 +195,7 @@ int omap4430_phy_set_clk(struct device *dev, int on)
 		clk_enable(clk48m);
 		clk_enable(clk32k);
 		state = 1;
-	} else if (state) {
+	} else if (!on && state) {
 		/* Disable the phy clocks */
 		clk_disable(phyclk);
 		clk_disable(clk48m);
@@ -107,9 +205,68 @@ int omap4430_phy_set_clk(struct device *dev, int on)
 	return 0;
 }
 
+int omap4_charger_detect(void)
+{
+	unsigned long timeout;
+	int charger = POWER_SUPPLY_TYPE_USB;
+	u32 usb2phycore = 0;
+	u32 chargertype = 0;
+
+	/* enable charger detection and restart it */
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore &= ~USB2PHY_DISCHGDET;
+	usb2phycore |= USB2PHY_RESTARTCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+	mdelay(2);
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore &= ~USB2PHY_RESTARTCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+
+	timeout = jiffies + msecs_to_jiffies(500);
+	do {
+		usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+		chargertype = ((usb2phycore >> 21) & 0x7);
+		if (usb2phycore & USB2PHY_CHGDETECTED)
+			break;
+		msleep_interruptible(10);
+	} while (!time_after(jiffies, timeout));
+
+	switch (chargertype) {
+	case CHARGER_TYPE_DEDICATED:
+		charger = POWER_SUPPLY_TYPE_USB_DCP;
+		pr_info("DCP detected\n");
+		break;
+	case CHARGER_TYPE_HOST:
+		charger = POWER_SUPPLY_TYPE_USB_CDP;
+		pr_info("CDP detected\n");
+		break;
+	case CHARGER_TYPE_PC:
+		charger = POWER_SUPPLY_TYPE_USB;
+		pr_info("PC detected\n");
+		break;
+	case CHARGER_TYPE_PS2:
+		pr_info("PS/2 detected!\n");
+		break;
+	default:
+		pr_err("Unknown charger detected! %d\n", chargertype);
+	}
+
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore |= USB2PHY_DISCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+
+	return charger;
+}
+
 int omap4430_phy_power(struct device *dev, int ID, int on)
 {
 	if (on) {
+
+#ifdef CONFIG_OMAP4_HSOTG_ED_CORRECTION
+		/* apply eye diagram improvement settings */
+		omap44xx_hsotg_ed_correction();
+#endif
+
 		if (ID)
 			/* enable VBUS valid, IDDIG groung */
 			__raw_writel(AVALID | VBUSVALID, ctrl_base +
@@ -143,10 +300,8 @@ int omap4430_phy_suspend(struct device *dev, int suspend)
 		/* Enable the internel phy clcoks */
 		omap4430_phy_set_clk(dev, 1);
 		/* power on the phy */
-		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD) {
+		if (__raw_readl(ctrl_base + CONTROL_DEV_CONF) & PHY_PD)
 			__raw_writel(~PHY_PD, ctrl_base + CONTROL_DEV_CONF);
-			mdelay(200);
-		}
 
 		/* restore the context */
 		__raw_writel(usbotghs_control, ctrl_base + USBOTGHS_CONTROL);

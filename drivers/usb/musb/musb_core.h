@@ -118,6 +118,32 @@ struct musb_ep;
 #define MUSB_CONFIG_PROC_FS
 #endif
 
+extern void musb_hz_mode_work(struct work_struct *);
+
+/* for high speed test mode; see USB 2.0 spec 7.1.20 */
+static const u8 musb_test_packet[53] = {
+	/* implicit SYNC then DATA0 to start */
+
+	/* JKJKJKJK x9 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* JJKKJJKK x8 */
+	0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+	/* JJJJKKKK x8 */
+	0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
+	/* JJJJJJJKKKKKKK x8 */
+	0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	/* JJJJJJJK x8 */
+	0x7f, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd,
+	/* JKKKKKKK x10, JK */
+	0xfc, 0x7e, 0xbf, 0xdf, 0xef, 0xf7, 0xfb, 0xfd, 0x7e
+
+	/* implicit CRC16 then EOP to end */
+};
+
+#ifdef CONFIG_USB_MUSB_HSET
+extern void musb_init_hset(char *name, struct musb *musb);
+#endif
+
 /****************************** PERIPHERAL ROLE *****************************/
 
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
@@ -390,6 +416,7 @@ struct musb {
 	struct wake_lock	musb_wakelock;
 	struct work_struct	irq_work;
 	struct workqueue_struct	*otg_notifier_wq;
+	struct work_struct	hz_mode_work;
 	u16			hwvers;
 
 /* this hub status bit is reserved by USB 2.0 and not seen by usbcore */
@@ -520,6 +547,9 @@ struct musb {
 
 #ifdef MUSB_CONFIG_PROC_FS
 	struct proc_dir_entry *proc_entry;
+#endif
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	int event;
 #endif
 };
 

@@ -132,7 +132,13 @@ MODULE_PARM_DESC(initial_descriptor_timeout,
  * otherwise the new scheme is used.  If that fails and "use_both_schemes"
  * is set, then the driver will make another attempt, using the other scheme.
  */
+
+#ifdef CONFIG_USB_MUSB_HSET
+static int old_scheme_first = 1;
+#else
 static int old_scheme_first = 0;
+#endif
+
 module_param(old_scheme_first, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(old_scheme_first,
 		 "start with the old device initialization scheme");
@@ -692,6 +698,68 @@ int usb_remove_device(struct usb_device *udev)
 	hub_port_logical_disconnect(hub, udev->portnum);
 	usb_autopm_put_interface(intf);
 	return 0;
+}
+
+bool usb_can_disconnect_device(struct usb_device *udev)
+{
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+
+	/* Currently only root hubs supported */
+	if (udev->parent == NULL && hcd->driver->disconnect)
+		return true;
+
+	return false;
+}
+
+bool usb_can_reconnect_device(struct usb_device *udev)
+{
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+
+	/* Currently only root hubs supported */
+	if (udev->parent == NULL && hcd->driver->reconnect)
+		return true;
+
+	return false;
+}
+
+
+/**
+ * usb_disconnect_device - disconnect a device
+ * @port: port with device to be disconnected
+ */
+int usb_disconnect_device(struct usb_device *udev, int port)
+{
+	struct usb_hcd *hcd;
+
+	if (udev->parent)
+		return -EINVAL;
+
+	hcd = bus_to_hcd(udev->bus);
+
+	if (!hcd->driver->disconnect)
+		return -EINVAL;
+
+	return hcd->driver->disconnect(hcd, port);
+}
+
+/**
+ * usb_reconnect_device - re-connect a device
+ * @port: port with device to be reconnected
+ * Must be disconnected before
+ */
+int usb_reconnect_device(struct usb_device *udev, int port)
+{
+	struct usb_hcd *hcd;
+
+	if (udev->parent)
+		return -EINVAL;
+
+	hcd = bus_to_hcd(udev->bus);
+
+	if (!hcd->driver->reconnect)
+		return -EINVAL;
+
+	return hcd->driver->reconnect(hcd, port);
 }
 
 enum hub_activation_type {

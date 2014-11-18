@@ -48,30 +48,22 @@ static DEFINE_SPINLOCK(rprocs_lock);
 /* debugfs parent dir */
 static struct dentry *rproc_dbg;
 
-static ssize_t rproc_format_trace_buf(struct rproc *rproc, char __user *userbuf,
-					size_t count, loff_t *ppos,
-					const void *src, int size)
+static ssize_t rproc_format_trace_buf(char __user *userbuf, size_t count,
+				    loff_t *ppos, const void *src, int size)
 {
 	const char *buf = (const char *) src;
 	ssize_t num_copied = 0;
 	static int from_beg;
 	loff_t pos = *ppos;
 	int *w_idx;
-	int i, w_pos, ret = 0;
-
-	if (mutex_lock_interruptible(&rproc->tlock))
-		return -EINTR;
+	int i, w_pos;
 
 	/* When src is NULL, the remoteproc is offline. */
-	if (!src) {
-		ret = -EIO;
-		goto unlock;
-	}
+	if (!src)
+		return -EIO;
 
-	if (size < 2 * sizeof(u32)) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (size < 2 * sizeof(u32))
+		return -EINVAL;
 
 	/* Assume write_idx is the penultimate byte in the buffer trace*/
 	size = size - (sizeof(u32) * 2);
@@ -88,29 +80,25 @@ static ssize_t rproc_format_trace_buf(struct rproc *rproc, char __user *userbuf,
 		;
 
 	if (i > w_pos)
-		num_copied =
-			simple_read_from_buffer(userbuf, count, ppos, src, i);
+		num_copied = simple_read_from_buffer(userbuf, count,
+							ppos, src, i);
 		if (!num_copied) {
 			from_beg = 1;
 			*ppos = 0;
-		} else {
-			ret = num_copied;
-			goto unlock;
-		}
+		} else
+			return num_copied;
 print_beg:
 	for (i = 0; i < w_pos && buf[i]; i++)
 		;
 
 	if (i) {
-		num_copied =
-			simple_read_from_buffer(userbuf, count, ppos, src, i);
+		num_copied = simple_read_from_buffer(userbuf, count,
+							ppos, src, i);
 		if (!num_copied)
 			from_beg = 0;
-		ret = num_copied;
+		return num_copied;
 	}
-unlock:
-	mutex_unlock(&rproc->tlock);
-	return ret;
+	return 0;
 }
 
 static ssize_t rproc_name_read(struct file *filp, char __user *userbuf,
@@ -147,12 +135,12 @@ static int rproc_open_generic(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#define DEBUGFS_READONLY_FILE(name, v, l)				\
+#define DEBUGFS_READONLY_FILE(name, value, len)				\
 static ssize_t name## _rproc_read(struct file *filp,			\
-		char __user *ubuf, size_t count, loff_t *ppos)		\
+		char __user *userbuf, size_t count, loff_t *ppos)	\
 {									\
 	struct rproc *rproc = filp->private_data;			\
-	return rproc_format_trace_buf(rproc, ubuf, count, ppos, v, l);	\
+	return rproc_format_trace_buf(userbuf, count, ppos, value, len);\
 }									\
 									\
 static const struct file_operations name ##_rproc_ops = {		\
@@ -272,9 +260,8 @@ static int setup_rproc_elf_core_dump(struct core_rproc *d)
 {
 	short __phnum;
 	struct elf_phdr *nphdr;
-	struct exc_regs *xregs = d->rproc->cdump_buf1;
-	struct pt_regs *regs =
-		(struct pt_regs *)&d->core.core_note.prstatus.pr_reg;
+	struct exc_regs *xregs;
+	struct pt_regs *regs;
 
 	memset(&d->core.elf, 0, sizeof(d->core.elf));
 
@@ -309,8 +296,12 @@ static int setup_rproc_elf_core_dump(struct core_rproc *d)
 	d->core.core_note.note_prstatus.n_type = NT_PRSTATUS;
 	memcpy(d->core.core_note.name, CORE_STR, sizeof(CORE_STR));
 
-	remoteproc_fill_pt_regs(regs, xregs);
-
+	/* fill in registers for ipu only, dsp yet to be supported */
+	if (!strcmp(d->rproc->name, "ipu")) {
+		xregs = d->rproc->cdump_buf1;
+		regs = (struct pt_regs *)&d->core.core_note.prstatus.pr_reg;
+		remoteproc_fill_pt_regs(regs, xregs);
+	}
 	/* We ignore the NVIC registers for now */
 
 	d->offset = sizeof(struct core);
@@ -556,8 +547,8 @@ static struct rproc *__find_rproc_by_name(const char *name)
 }
 
 /**
- * __rproc_da_to_pa - convert a device (virtual) address to its physical address
- * @maps: the remote processor's memory mappings array
+ * rproc_da_to_pa - convert a device (virtual) address to its physical address
+ * @rproc: the remote processor handle
  * @da: a device address (as seen by the remote processor)
  * @pa: pointer to the physical address result
  *
@@ -568,26 +559,32 @@ static struct rproc *__find_rproc_by_name(const char *name)
  * On success 0 is returned, and the @pa is updated with the result.
  * Otherwise, -EINVAL is returned.
  */
-static int
-rproc_da_to_pa(const struct rproc_mem_entry *maps, u64 da, phys_addr_t *pa)
+int rproc_da_to_pa(struct rproc *rproc, u64 da, phys_addr_t *pa)
 {
-	int i;
-	u64 offset;
+	int i, ret = -EINVAL;
+	struct rproc_mem_entry *maps = NULL;
 
-	for (i = 0; maps[i].size; i++) {
-		const struct rproc_mem_entry *me = &maps[i];
+	if (!rproc || !pa)
+		return -EINVAL;
 
-		if (da >= me->da && da < (me->da + me->size)) {
-			offset = da - me->da;
+	if (mutex_lock_interruptible(&rproc->lock))
+		return -EINTR;
+
+	maps = rproc->memory_maps;
+	for (i = 0; maps->size; maps++) {
+		if (da >= maps->da && da < (maps->da + maps->size)) {
 			pr_debug("%s: matched mem entry no. %d\n",
 				__func__, i);
-			*pa = me->pa + offset;
-			return 0;
+			*pa = maps->pa + (da - maps->da);
+			ret = 0;
+			break;
 		}
 	}
 
-	return -EINVAL;
+	mutex_unlock(&rproc->lock);
+	return ret;
 }
+EXPORT_SYMBOL(rproc_da_to_pa);
 
 static int rproc_mmu_fault_isr(struct rproc *rproc, u64 da, u32 flags)
 {
@@ -769,7 +766,9 @@ static int rproc_add_mem_entry(struct rproc *rproc, struct fw_resource *rsc)
 		 * carveouts we don't care about in a core dump.
 		 * Perhaps the ION carveout should be reported as RSC_DEVMEM.
 		 */
-		me->core = (rsc->type == RSC_CARVEOUT && rsc->pa != 0xba300000);
+		me->core = (rsc->type == RSC_CARVEOUT &&
+				strcmp(rsc->name, "IPU_MEM_IOBUFS") &&
+				strcmp(rsc->name, "DSP_MEM_IOBUFS"));
 #endif
 	}
 
@@ -892,7 +891,13 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 				rsc->pa = pa;
 			} else {
 				ret = rproc_check_poolmem(rproc, rsc->len, pa);
-				if (ret) {
+				/*
+				 * ignore the error for DSP buffers as they can
+				 * not be assigned together with rest of dsp
+				 * pool memory
+				 */
+				if (ret &&
+					strcmp(rsc->name, "DSP_MEM_IOBUFS")) {
 					dev_err(dev, "static memory for %s "
 						"doesn't belong to poolmem\n",
 						rsc->name);
@@ -927,14 +932,10 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	 * trace buffer memory _is_ normal memory, so we cast away the
 	 * __iomem to make sparse happy
 	 */
-
-	if (mutex_lock_interruptible(&rproc->tlock))
-		goto error;
-
 	if (trace_da0) {
-		ret = rproc_da_to_pa(rproc->memory_maps, trace_da0, &pa);
+		ret = rproc_da_to_pa(rproc, trace_da0, &pa);
 		if (ret)
-			goto unlock;
+			goto error;
 		rproc->trace_buf0 = (__force void *)
 				ioremap_nocache(pa, rproc->trace_len0);
 		if (rproc->trace_buf0) {
@@ -945,20 +946,20 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 							GFP_KERNEL);
 				if (!rproc->last_trace_buf0) {
 					ret = -ENOMEM;
-					goto unlock;
+					goto error;
 				}
 				DEBUGFS_ADD(trace0_last);
 			}
 		} else {
 			dev_err(dev, "can't ioremap trace buffer0\n");
 			ret = -EIO;
-			goto unlock;
+			goto error;
 		}
 	}
 	if (trace_da1) {
-		ret = rproc_da_to_pa(rproc->memory_maps, trace_da1, &pa);
+		ret = rproc_da_to_pa(rproc, trace_da1, &pa);
 		if (ret)
-			goto unlock;
+			goto error;
 		rproc->trace_buf1 = (__force void *)
 				ioremap_nocache(pa, rproc->trace_len1);
 		if (rproc->trace_buf1) {
@@ -969,14 +970,13 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 							GFP_KERNEL);
 				if (!rproc->last_trace_buf1) {
 					ret = -ENOMEM;
-					goto unlock;
+					goto error;
 				}
 				DEBUGFS_ADD(trace1_last);
 			}
 		} else {
 			dev_err(dev, "can't ioremap trace buffer1\n");
 			ret = -EIO;
-			goto unlock;
 		}
 	}
 
@@ -988,9 +988,9 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 	 * make sparse happy
 	 */
 	if (cdump_da0) {
-		ret = rproc_da_to_pa(rproc->memory_maps, cdump_da0, &pa);
+		ret = rproc_da_to_pa(rproc, cdump_da0, &pa);
 		if (ret)
-			goto unlock;
+			goto error;
 		rproc->cdump_buf0 = (__force void *)
 					ioremap_nocache(pa, rproc->cdump_len0);
 		if (rproc->cdump_buf0)
@@ -998,13 +998,13 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 		else {
 			dev_err(dev, "can't ioremap cdump buffer0\n");
 			ret = -EIO;
-			goto unlock;
+			goto error;
 		}
 	}
 	if (cdump_da1) {
-		ret = rproc_da_to_pa(rproc->memory_maps, cdump_da1, &pa);
+		ret = rproc_da_to_pa(rproc, cdump_da1, &pa);
 		if (ret)
-			goto unlock;
+			goto error;
 		rproc->cdump_buf1 = (__force void *)
 					ioremap_nocache(pa, rproc->cdump_len1);
 		if (rproc->cdump_buf1)
@@ -1012,11 +1012,9 @@ static int rproc_handle_resources(struct rproc *rproc, struct fw_resource *rsc,
 		else {
 			dev_err(dev, "can't ioremap cdump buffer1\n");
 			ret = -EIO;
+			goto error;
 		}
 	}
-
-unlock:
-	mutex_unlock(&rproc->tlock);
 
 error:
 	if (ret && rproc->dbg_dir) {
@@ -1066,13 +1064,12 @@ static int rproc_process_fw(struct rproc *rproc, struct fw_section *section,
 			ret = rproc_handle_resources(rproc,
 					(struct fw_resource *) section->content,
 					len, bootaddr);
-			if (ret) {
+			if (ret)
 				break;
-			}
 		}
 
 		if (section->type <= FW_DATA) {
-			ret = rproc_da_to_pa(rproc->memory_maps, da, &pa);
+			ret = rproc_da_to_pa(rproc, da, &pa);
 			if (ret) {
 				dev_err(dev, "rproc_da_to_pa failed:%d\n", ret);
 				break;
@@ -1117,7 +1114,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	u64 bootaddr = 0;
 	struct fw_header *image;
 	struct fw_section *section;
-	int left, ret;
+	int left, ret = -EINVAL;
 
 	if (!fw) {
 		dev_err(dev, "%s: failed to load %s\n", __func__, fwfile);
@@ -1139,7 +1136,7 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 		goto out;
 	}
 
-	dev_info(dev, "BIOS image version is %d\n", image->version);
+	dev_dbg(dev, "BIOS image version is %d\n", image->version);
 
 	rproc->header = kzalloc(image->header_len, GFP_KERNEL);
 	if (!rproc->header) {
@@ -1148,6 +1145,9 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	}
 	memcpy(rproc->header, image->header, image->header_len);
 	rproc->header_len = image->header_len;
+
+	debugfs_create_file("version", 0444, rproc->dbg_dir, rproc,
+							&rproc_version_ops);
 
 	/* Ensure we recognize this BIOS version: */
 	if (image->version != RPROC_BIOS_VERSION) {
@@ -1160,6 +1160,10 @@ static void rproc_loader_cont(const struct firmware *fw, void *context)
 	section = (struct fw_section *)(image->header + image->header_len);
 
 	left = fw->size - sizeof(struct fw_header) - image->header_len;
+
+	/* event currently used to bump the remoteproc to max freq
+	 * while booting.  */
+	_event_notify(rproc, RPROC_PRELOAD, NULL);
 
 	ret = rproc_process_fw(rproc, section, left, &bootaddr);
 	if (ret) {
@@ -1174,6 +1178,8 @@ out:
 complete_fw:
 	/* allow all contexts calling rproc_put() to proceed */
 	complete_all(&rproc->firmware_loading_complete);
+	if (ret)
+		_event_notify(rproc, RPROC_LOAD_ERROR, NULL);
 }
 
 static int rproc_loader(struct rproc *rproc)
@@ -1200,6 +1206,34 @@ static int rproc_loader(struct rproc *rproc)
 
 	return 0;
 }
+
+int rproc_pa_to_da(struct rproc *rproc, phys_addr_t pa, u64 *da)
+{
+	int i, ret = -EINVAL;
+	struct rproc_mem_entry *maps = NULL;
+
+	if (!rproc || !da)
+		return -EINVAL;
+
+	if (mutex_lock_interruptible(&rproc->lock))
+		return -EINTR;
+
+	if (rproc->state == RPROC_RUNNING || rproc->state == RPROC_SUSPENDED) {
+		maps = rproc->memory_maps;
+		for (i = 0; maps->size; maps++) {
+			if (pa >= maps->pa && pa < (maps->pa + maps->size)) {
+				*da = maps->da + (pa - maps->pa);
+				ret = 0;
+				break;
+			}
+		}
+	}
+
+	mutex_unlock(&rproc->lock);
+	return ret;
+
+}
+EXPORT_SYMBOL(rproc_pa_to_da);
 
 int rproc_set_secure(const char *name, bool enable)
 {
@@ -1338,9 +1372,6 @@ void rproc_put(struct rproc *rproc)
 	if (--rproc->count)
 		goto out;
 
-	if (mutex_lock_interruptible(&rproc->tlock))
-		goto out;
-
 	if (rproc->trace_buf0)
 		/* iounmap normal memory, so make sparse happy */
 		iounmap((__force void __iomem *) rproc->trace_buf0);
@@ -1356,8 +1387,6 @@ void rproc_put(struct rproc *rproc)
 		/* iounmap normal memory, so make sparse happy */
 		iounmap((__force void __iomem *) rproc->cdump_buf1);
 	rproc->cdump_buf0 = rproc->cdump_buf1 = NULL;
-
-	mutex_unlock(&rproc->tlock);
 
 	rproc_reset_poolmem(rproc);
 	memset(rproc->memory_maps, 0, sizeof(rproc->memory_maps));
@@ -1708,7 +1737,6 @@ int rproc_register(struct device *dev, const char *name,
 #endif
 	mutex_init(&rproc->lock);
 	mutex_init(&rproc->secure_lock);
-	mutex_init(&rproc->tlock);
 	INIT_WORK(&rproc->error_work, rproc_error_work);
 	BLOCKING_INIT_NOTIFIER_HEAD(&rproc->nbh);
 
@@ -1748,8 +1776,6 @@ int rproc_register(struct device *dev, const char *name,
 	debugfs_create_file("name", 0444, rproc->dbg_dir, rproc,
 							&rproc_name_ops);
 
-	debugfs_create_file("version", 0444, rproc->dbg_dir, rproc,
-							&rproc_version_ops);
 out:
 	return 0;
 }

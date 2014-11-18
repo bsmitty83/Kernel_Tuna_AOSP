@@ -46,7 +46,9 @@
 #define DISPC_IRQ_VID3_FIFO_UNDERFLOW	(1 << 20)
 #define DISPC_IRQ_ACBIAS_COUNT_STAT2	(1 << 21)
 #define DISPC_IRQ_FRAMEDONE2		(1 << 22)
+#define DISPC_IRQ_FRAMEDONE_WB		(1 << 23)
 #define DISPC_IRQ_FRAMEDONETV		(1 << 24)
+#define DISPC_IRQ_WBINCOMPLETE		(1 << 26)
 
 struct omap_dss_device;
 struct omap_overlay_manager;
@@ -66,6 +68,7 @@ enum omap_plane {
 	OMAP_DSS_VIDEO1	= 1,
 	OMAP_DSS_VIDEO2	= 2,
 	OMAP_DSS_VIDEO3 = 3,
+	OMAP_DSS_WB	= 4,
 };
 
 enum omap_channel {
@@ -246,6 +249,7 @@ void rfbi_bus_unlock(void);
 /* DSI */
 void dsi_bus_lock(struct omap_dss_device *dssdev);
 void dsi_bus_unlock(struct omap_dss_device *dssdev);
+bool dsi_bus_was_unlocked(struct omap_dss_device *dssdev);
 int dsi_vc_dcs_write(struct omap_dss_device *dssdev, int channel, u8 *data,
 		int len);
 int dsi_vc_dcs_write_0(struct omap_dss_device *dssdev, int channel,
@@ -376,6 +380,7 @@ struct omap_overlay_info {
 	u16 out_height;	/* if 0, out_height == height */
 	u8 global_alpha;
 	u8 pre_mult_alpha;
+	u8 wb_source;
 	enum omap_overlay_zorder zorder;
 	u16 min_x_decim, max_x_decim, min_y_decim, max_y_decim;
 	struct omap_dss_cconv_coefs cconv;
@@ -421,6 +426,9 @@ struct omap_overlay_manager_info {
 
 	bool alpha_enabled;
 
+	/* if true, manager is used in MEM2MEM mode */
+	bool wb_only;
+
 	struct omapdss_ovl_cb cb;
 
 	bool cpr_enable;
@@ -447,6 +455,8 @@ struct omap_overlay_manager {
 	/* if true, info has been changed but not applied() yet */
 	bool info_dirty;
 
+	bool m2m_only;
+
 	int (*set_device)(struct omap_overlay_manager *mgr,
 		struct omap_dss_device *dssdev);
 	int (*unset_device)(struct omap_overlay_manager *mgr);
@@ -466,6 +476,71 @@ struct omap_overlay_manager {
 	int (*disable)(struct omap_overlay_manager *mgr);
 };
 
+/* Writeback data structures */
+enum omap_writeback_source {
+	OMAP_WB_LCD1		= 0,
+	OMAP_WB_TV		= 1,
+	OMAP_WB_LCD2		= 2,
+	OMAP_WB_GFX		= 3,
+	OMAP_WB_VID1		= 4,
+	OMAP_WB_VID2		= 5,
+	OMAP_WB_VID3		= 6
+};
+
+enum omap_writeback_capturemode {
+	OMAP_WB_CAPTURE_ALL		= 0x0,
+	OMAP_WB_CAPTURE_1		= 0x1,
+	OMAP_WB_CAPTURE_1_OF_2	= 0x2,
+	OMAP_WB_CAPTURE_1_OF_3	= 0x3,
+	OMAP_WB_CAPTURE_1_OF_4	= 0x4,
+	OMAP_WB_CAPTURE_1_OF_5	= 0x5,
+	OMAP_WB_CAPTURE_1_OF_6	= 0x6,
+	OMAP_WB_CAPTURE_1_OF_7	= 0x7
+};
+
+enum omap_writeback_mode {
+	OMAP_WB_CAPTURE_MODE	= 0x0,
+	OMAP_WB_MEM2MEM_MODE	= 0x1,
+};
+
+struct omap_writeback_info {
+	bool					enabled;
+	bool					info_dirty;
+	enum omap_writeback_source		source;
+	u16					width;
+	u16					height;
+	u16					out_width;
+	u16					out_height;
+	enum omap_color_mode			dss_mode;
+	enum omap_writeback_capturemode		capturemode;
+	/* capture or mem2mem mode */
+	enum omap_writeback_mode		mode;
+	u32					paddr;
+	/* NV12 support*/
+	u32					p_uv_addr;
+	u8					rotation;
+	enum omap_dss_rotation_type		rotation_type;
+};
+
+struct omap_writeback {
+	struct kobject			kobj;
+	struct list_head		list;
+	bool				info_dirty;
+	int				width;
+	int				height;
+	/* mutex to control access to wb data */
+	struct mutex			lock;
+	struct omap_writeback_info	info;
+	struct completion		wb_completion;
+
+	bool (*check_wb)(struct omap_writeback *wb);
+	int (*set_wb_info)(struct omap_writeback *wb,
+			struct omap_writeback_info *info);
+	void (*get_wb_info)(struct omap_writeback *wb,
+			struct omap_writeback_info *info);
+	int (*register_framedone)(struct omap_writeback *wb);
+	int (*wait_framedone)(struct omap_writeback *wb);
+};
 struct omap_dss_device {
 	struct device dev;
 
@@ -556,6 +631,9 @@ struct omap_dss_device {
 
 		u32 width_in_um;
 		u32 height_in_um;
+		u16 fb_xres;
+		u16 fb_yres;
+		u32 hdmi_default_cea_code;
 	} panel;
 
 	struct {
@@ -660,6 +738,7 @@ struct omap_dss_driver {
 	/* for wrapping around state changes */
 	void (*disable_orig)(struct omap_dss_device *display);
 	int (*enable_orig)(struct omap_dss_device *display);
+	int (*suspend_orig)(struct omap_dss_device *display);
 };
 
 int omap_dss_register_driver(struct omap_dss_driver *);
@@ -675,11 +754,14 @@ struct omap_dss_device *omap_dss_find_device(void *data,
 int omap_dss_start_device(struct omap_dss_device *dssdev);
 void omap_dss_stop_device(struct omap_dss_device *dssdev);
 
+void dss_m2m_clock_handling(struct omap_overlay_manager *mgr);
+
 int omap_dss_get_num_overlay_managers(void);
 struct omap_overlay_manager *omap_dss_get_overlay_manager(int num);
 
 int omap_dss_get_num_overlays(void);
 struct omap_overlay *omap_dss_get_overlay(int num);
+struct omap_writeback *omap_dss_get_wb(int num);
 
 void omapdss_default_get_resolution(struct omap_dss_device *dssdev,
 		u16 *xres, u16 *yres);

@@ -33,12 +33,6 @@
 
 #define OMAP_MODE13X_SPEED	230400
 
-/* WER = 0x7F
- * Enable module level wakeup in WER reg
- */
-#define OMAP2_UART_WER_MOD_WKUP	0X7F
-#define OMAP4_UART_WER_MOD_WKUP	0XFF
-
 /* Enable XON/XOFF flow control on output */
 #define OMAP_UART_SW_TX		0x8
 
@@ -76,6 +70,17 @@
 
 #define UART_ERRATA_i202_MDR1_ACCESS	BIT(0)
 #define OMAP4_UART_ERRATA_i659_TX_THR	BIT(1)
+
+#define OMAP_UART_WER_TX        0x80
+#define OMAP_UART_WER_RLSI      0x40
+#define OMAP_UART_WER_RHRI      0x20
+#define OMAP_UART_WER_RX        0x10
+#define OMAP_UART_WER_DCDCD     0x08
+#define OMAP_UART_WER_RI        0x04
+#define OMAP_UART_WER_DSR       0x02
+#define OMAP_UART_WER_CTS       0x01
+
+#define OMAP_UART_SCR_TX_EMPTY	0x08
 
 struct omap_uart_port_info {
 	int                     dma_rx_buf_size;/* DMA Rx Buffer Size */
@@ -139,6 +144,12 @@ struct uart_omap_port {
 	unsigned char		dlh;
 	unsigned char		mdr1;
 	unsigned char		wer;
+	unsigned char		scr;
+
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	unsigned int            baud_rate;
+	struct notifier_block   nb;
+#endif
 
 	int			use_dma;
 	bool			suspended;
@@ -158,8 +169,12 @@ struct uart_omap_port {
 	unsigned		rts_pullup_in_suspend:1;
 
 	unsigned int		errata;
+	unsigned char		wer_restore;
 	void (*enable_wakeup)(struct platform_device *, bool);
 	bool (*chk_wakeup)(struct platform_device *);
 	void (*wake_peer)(struct uart_port *);
 };
+
+int omap_serial_ext_uart_enable(u8 port_id);
+int omap_serial_ext_uart_disable(u8 port_id);
 #endif /* __OMAP_SERIAL_H__ */

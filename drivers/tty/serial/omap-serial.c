@@ -46,10 +46,32 @@
 #include <plat/serial.h>
 #include <plat/omap-pm.h>
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+#include <mach/omap4-common.h>
+#include <plat/clock.h>
+#endif
+
 #define UART_OMAP_IIR_ID		0x3e
 #define UART_OMAP_IIR_RX_TIMEOUT	0xc
 
-#define UART_OMAP_TXFIFO_LVL		(0x68/4)
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+
+#define OMAP_UART_MASTER_CLOCK			24000000
+#define OMAP_UART_DPLL_CLOCK			3072000
+
+struct serial_dpll_cascading_blocker {
+	bool lock_dpll_cascading;
+	struct uart_omap_port *up;
+	struct work_struct dpll_blocker_work;
+};
+
+static struct serial_dpll_cascading_blocker dpll_blocker = {
+	.lock_dpll_cascading = true,
+	.up = NULL,
+};
+
+static bool dpll_registration_done;
+#endif
 
 static struct uart_omap_port *ui[OMAP_MAX_HSUART_PORTS];
 
@@ -315,10 +337,10 @@ ignore_char:
 	spin_lock(&up->port.lock);
 }
 
-static void transmit_chars(struct uart_omap_port *up, u8 tx_fifo_lvl)
+static void transmit_chars(struct uart_omap_port *up)
 {
 	struct circ_buf *xmit = &up->port.state->xmit;
-	int count, i;
+	int count;
 
 	if (up->port.x_char) {
 		serial_out(up, UART_TX, up->port.x_char);
@@ -330,14 +352,14 @@ static void transmit_chars(struct uart_omap_port *up, u8 tx_fifo_lvl)
 		serial_omap_stop_tx(&up->port);
 		return;
 	}
-	count = up->port.fifosize - tx_fifo_lvl;
-	for (i = 0; i < count; i++) {
+	count = up->port.fifosize / 4;
+	do {
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))
 			break;
-	}
+	} while (--count > 0);
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(&up->port);
@@ -458,7 +480,6 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 	unsigned int int_id;
 	unsigned long flags;
 	int ret = IRQ_HANDLED;
-	u8 tx_fifo_lvl;
 
 	serial_omap_port_enable(up);
 	iir = serial_in(up, UART_IIR);
@@ -487,9 +508,8 @@ static inline irqreturn_t serial_omap_irq(int irq, void *dev_id)
 
 	check_modem_status(up);
 	if (int_id == UART_IIR_THRI) {
-		tx_fifo_lvl = serial_in(up, UART_OMAP_TXFIFO_LVL);
-		if (lsr & UART_LSR_THRE || tx_fifo_lvl < up->port.fifosize)
-			transmit_chars(up, tx_fifo_lvl);
+		if (lsr & UART_LSR_THRE)
+			transmit_chars(up);
 		else
 			ret = IRQ_NONE;
 	}
@@ -644,6 +664,7 @@ static int serial_omap_startup(struct uart_port *port)
 	serial_out(up, UART_IER, up->ier);
 
 	/* Enable module level wake up */
+	up->wer_restore = up->wer;
 	serial_out(up, UART_OMAP_WER, up->wer);
 
 	serial_omap_port_disable(up);
@@ -663,6 +684,7 @@ static void serial_omap_shutdown(struct uart_port *port)
 	 * Disable interrupts & wakeup events from this port
 	 */
 	up->ier = 0;
+	up->wer_restore = 0;
 	serial_out(up, UART_OMAP_WER, 0);
 	serial_out(up, UART_IER, 0);
 
@@ -695,6 +717,12 @@ static void serial_omap_shutdown(struct uart_port *port)
 	}
 	serial_omap_port_disable(up);
 	disable_irq(up->port.irq);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	/* Set this to zero, would be initialsed
+	 * to the corrcet value at set_stermios.
+	 */
+	up->baud_rate = 0;
+#endif
 }
 
 static inline void
@@ -762,7 +790,6 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 {
 	struct uart_omap_port *up = (struct uart_omap_port *)port;
 	unsigned char cval = 0;
-	unsigned char efr = 0;
 	unsigned long flags = 0;
 	unsigned int baud, quot;
 
@@ -794,6 +821,14 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	 */
 
 	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk/13);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	/* Added for the suporrt of DPLL, frequency changes
+	 * This value can be used to recalculate the DLLand
+	 * DLH values. If this function is not called for
+	 * particulate UART it would remain as 0.
+	 */
+	up->baud_rate = baud;
+#endif
 	quot = serial_omap_get_divisor(port, baud);
 
 	up->dll = quot & 0xff;
@@ -854,9 +889,9 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 	serial_out(up, UART_IER, up->ier);
 	serial_out(up, UART_LCR, cval);		/* reset DLAB */
 	up->lcr = cval;
+	up->scr = OMAP_UART_SCR_TX_EMPTY;
 
 	/* FIFOs and DMA Settings */
-
 	/* FCR can be changed only when the
 	 * baud clock is not running
 	 * DLL_REG and DLH_REG set to 0.
@@ -885,10 +920,10 @@ serial_omap_set_termios(struct uart_port *port, struct ktermios *termios,
 		}
 
 		serial_out(up, UART_TI752_TLR, 0);
-		serial_out(up, UART_OMAP_SCR,
-			(UART_FCR_TRIGGER_4 | UART_FCR_TRIGGER_8));
+		up->scr |= (UART_FCR_TRIGGER_4 | UART_FCR_TRIGGER_8);
 	}
 
+	serial_out(up, UART_OMAP_SCR, up->scr);
 	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, UART_LCR_CONF_MODE_A);
 	serial_out(up, UART_MCR, up->mcr);
@@ -1434,6 +1469,109 @@ static void uart_tx_dma_callback(int lch, u16 ch_status, void *data)
 	return;
 }
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+static inline bool omap_is_console_port(struct uart_port *port)
+{
+	return (port->cons && (port->cons->index == port->line));
+}
+
+int omap_uart_recalibrate_baud_cb(struct notifier_block *nb,
+				unsigned long status, void *data)
+{
+	struct uart_omap_port *up = NULL;
+	struct clk_notifier_data *cnd = (struct clk_notifier_data *)data;
+	unsigned int baud_quot;
+	unsigned int divisor;
+	unsigned int portid;
+
+	switch (status) {
+	case CLK_PRE_RATE_CHANGE:
+		for (portid = 0 ; portid < OMAP_MAX_HSUART_PORTS ; portid++) {
+			up = ui[portid];
+			/* If the device uses the RTS based controlling,
+			 * Pull Up the signal to stop transaction. As the
+			 * Clocks are not disabled. It even if the data
+			 * comes in it should be able to sample.
+			 */
+			if (up->rts_mux_driver_control)
+				omap_rts_mux_write(1, up->port.line);
+
+			/* This delay is based on the observation with
+			 * WL1283 and OMAP 4 Blaze, after Pulling the RTS
+			 * high, it takes almost 8us for the transactions
+			 * to stop plus another 2 us buffer. This would
+			 * allow the data to come in before the clocks are
+			 * changed.
+			 */
+			udelay(10);
+			serial_omap_port_enable(up);
+			serial_out(up, UART_LCR, 0);
+			serial_out(up, UART_IER, 0);
+			if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
+				omap_uart_mdr1_errataset(up,
+						UART_OMAP_MDR1_DISABLE);
+			else
+				serial_out(up, UART_OMAP_MDR1,
+						UART_OMAP_MDR1_DISABLE);
+			serial_omap_port_disable(up);
+
+		}
+		break;
+	case CLK_ABORT_RATE_CHANGE:
+	case CLK_POST_RATE_CHANGE:
+		for (portid = 0 ; portid < OMAP_MAX_HSUART_PORTS ; portid++) {
+			up = ui[portid];
+			/* these are hard coded here since the clock
+			 * framework is not return the correct value.
+			 */
+			/* Changed */
+			if (cnd->new_rate == OMAP_UART_DPLL_CLOCK)
+				up->port.uartclk = 24576000;
+			/* Original */
+			else if (cnd->new_rate == OMAP_UART_MASTER_CLOCK)
+				up->port.uartclk = 48000000;
+			else
+				dev_err(&up->pdev->dev,
+				"[UART%d]:%s:Unsupported DPLL rate :[%ld]\n",
+				up->pdev->id, __func__, cnd->new_rate);
+
+			/* if zero mean the driver has not been opened. */
+			if (up->baud_rate != 0) {
+				if (up->baud_rate > OMAP_MODE13X_SPEED
+				    && up->baud_rate != 3000000){
+					divisor = 13;
+					up->mdr1 = UART_OMAP_MDR1_13X_MODE;
+				} else {
+					divisor = 16;
+					up->mdr1 = UART_OMAP_MDR1_16X_MODE;
+				}
+				baud_quot = up->port.uartclk/
+					(up->baud_rate * divisor);
+				serial_omap_port_enable(up);
+				serial_out(up, UART_LCR,
+						UART_LCR_CONF_MODE_B);
+				serial_out(up, UART_DLL, baud_quot & 0xff);
+				serial_out(up, UART_DLM, baud_quot >> 8);
+				serial_out(up, UART_LCR, up->lcr &
+					(~(UART_LCR_DLAB|UART_LCR_SBC)));
+				serial_out(up, UART_IER, up->ier);
+				if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
+					omap_uart_mdr1_errataset(up, up->mdr1);
+				else
+					serial_out(up, UART_OMAP_MDR1,
+						up->mdr1);
+				serial_omap_port_disable(up);
+			}
+
+			if (up->rts_mux_driver_control)
+				omap_rts_mux_write(0, up->port.line);
+		}
+	}
+
+	return NOTIFY_DONE;
+}
+#endif
+
 static int serial_omap_probe(struct platform_device *pdev)
 {
 	struct uart_omap_port	*up = NULL;
@@ -1441,6 +1579,9 @@ static int serial_omap_probe(struct platform_device *pdev)
 	struct omap_uart_port_info *omap_up_info = pdev->dev.platform_data;
 	struct omap_device *od;
 	int ret = -ENOSPC;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	struct clk *func_48m_fclk;
+#endif
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!mem) {
@@ -1508,6 +1649,7 @@ static int serial_omap_probe(struct platform_device *pdev)
 	up->wake_peer = omap_up_info->wake_peer;
 	up->rts_mux_driver_control = omap_up_info->rts_mux_driver_control;
 	up->rts_pullup_in_suspend = 0;
+	up->wer_restore = 0;
 
 	if (omap_up_info->use_dma) {
 		up->uart_dma.uart_dma_tx = dma_tx->start;
@@ -1521,7 +1663,20 @@ static int serial_omap_probe(struct platform_device *pdev)
 		up->uart_dma.tx_dma_channel = OMAP_UART_DMA_CH_FREE;
 		up->uart_dma.rx_dma_channel = OMAP_UART_DMA_CH_FREE;
 	}
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	/* Initialise this to zero, would be initialsed
+	 * to the corrcet value at set_stermios.
+	 */
+	up->baud_rate = 0;
 
+	if (!dpll_registration_done) {
+		up->nb.notifier_call = omap_uart_recalibrate_baud_cb;
+		up->nb.next = NULL;
+		func_48m_fclk = clk_get(NULL, "func_48m_fclk");
+		clk_notifier_register(func_48m_fclk, &up->nb);
+		dpll_registration_done = true;
+	}
+#endif
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
 			omap_up_info->auto_sus_timeout);
@@ -1639,7 +1794,7 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 	serial_out(up, UART_EFR, up->efr);
 	serial_out(up, UART_LCR, up->lcr);
 	/* Enable module level wake up */
-	serial_out(up, UART_OMAP_WER, up->wer);
+	serial_out(up, UART_OMAP_WER, up->wer_restore);
 	if (up->use_dma) {
 		if (up->errata & OMAP4_UART_ERRATA_i659_TX_THR) {
 			serial_out(up, UART_MDR3, SET_DMA_TX_THRESHOLD);
@@ -1647,10 +1802,9 @@ static void omap_uart_restore_context(struct uart_omap_port *up)
 		}
 
 		serial_out(up, UART_TI752_TLR, 0);
-		serial_out(up, UART_OMAP_SCR,
-			(UART_FCR_TRIGGER_4 | UART_FCR_TRIGGER_8));
 	}
 
+	serial_out(up, UART_OMAP_SCR, up->scr);
 	/* UART 16x mode */
 	if (up->errata & UART_ERRATA_i202_MDR1_ACCESS)
 		omap_uart_mdr1_errataset(up, up->mdr1);
@@ -1716,6 +1870,29 @@ static struct platform_driver serial_omap_driver = {
 	},
 };
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+static void serial_dpll_cascading_blocker_work(struct work_struct *work)
+{
+	struct serial_dpll_cascading_blocker *dpll_blocker;
+	struct device *dev;
+
+	dpll_blocker = container_of(work,
+			struct serial_dpll_cascading_blocker,
+			dpll_blocker_work);
+
+	if (!dpll_blocker->up) {
+		pr_err("%s NULL Uart port", __func__);
+		return;
+	}
+
+	dev = &dpll_blocker->up->pdev->dev;
+	if (dpll_blocker->lock_dpll_cascading)
+		omap4_dpll_cascading_blocker_hold(dev);
+	else
+		omap4_dpll_cascading_blocker_release(dev);
+}
+#endif
+
 static int __init serial_omap_init(void)
 {
 	int ret;
@@ -1726,6 +1903,10 @@ static int __init serial_omap_init(void)
 	ret = platform_driver_register(&serial_omap_driver);
 	if (ret != 0)
 		uart_unregister_driver(&serial_omap_reg);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	INIT_WORK(&dpll_blocker.dpll_blocker_work,
+			serial_dpll_cascading_blocker_work);
+#endif
 	return ret;
 }
 
@@ -1733,6 +1914,50 @@ static void __exit serial_omap_exit(void)
 {
 	platform_driver_unregister(&serial_omap_driver);
 	uart_unregister_driver(&serial_omap_reg);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	flush_work_sync(&dpll_blocker.dpll_blocker_work);
+#endif
+}
+
+/* Used by ext client device connected to uart to control uart */
+int omap_serial_ext_uart_enable(u8 port_id)
+{
+	struct uart_omap_port *up;
+	int err = 0;
+
+	if (port_id > OMAP_MAX_HSUART_PORTS) {
+		pr_err("Invalid Port_id %d passed to %s\n", port_id, __func__);
+		err = -ENODEV;
+	} else {
+		up = ui[port_id];
+		serial_omap_port_enable(up);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		dpll_blocker.lock_dpll_cascading = true;
+		dpll_blocker.up = up;
+		schedule_work(&dpll_blocker.dpll_blocker_work);
+#endif
+	}
+	return err;
+}
+
+int omap_serial_ext_uart_disable(u8 port_id)
+{
+	struct uart_omap_port *up;
+	int err = 0;
+
+	if (port_id > OMAP_MAX_HSUART_PORTS) {
+		pr_err("Invalid Port_id %d passed to %s\n", port_id, __func__);
+		err = -ENODEV;
+	} else {
+		up = ui[port_id];
+		serial_omap_port_disable(up);
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+		dpll_blocker.lock_dpll_cascading = false;
+		dpll_blocker.up = up;
+		schedule_work(&dpll_blocker.dpll_blocker_work);
+#endif
+	}
+	return err;
 }
 
 module_init(serial_omap_init);

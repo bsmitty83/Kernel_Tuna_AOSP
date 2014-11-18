@@ -87,6 +87,9 @@ static unsigned long min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
  */
 #define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
 static unsigned long timer_rate = DEFAULT_TIMER_RATE;
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+static unsigned long default_timer_rate;
+#endif
 
 /*
  * Wait this long before raising speed above hispeed, by default a single
@@ -122,17 +125,24 @@ struct cpufreq_governor cpufreq_gov_interactive = {
 	.owner = THIS_MODULE,
 };
 
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+void cpufreq_interactive_set_timer_rate(unsigned long val, unsigned int reset)
+{
+	if (!reset) {
+		default_timer_rate = timer_rate;
+		timer_rate = val;
+	} else {
+		if (timer_rate == val)
+			timer_rate = default_timer_rate;
+	}
+}
+#endif
+
 static void cpufreq_interactive_timer_resched(
 	struct cpufreq_interactive_cpuinfo *pcpu)
 {
-	unsigned long expires = jiffies + usecs_to_jiffies(timer_rate);
+	unsigned long expires;
 	unsigned long flags;
-
-	mod_timer_pinned(&pcpu->cpu_timer, expires);
-	if (timer_slack_val >= 0 && pcpu->target_freq > pcpu->policy->min) {
-		expires += usecs_to_jiffies(timer_slack_val);
-		mod_timer_pinned(&pcpu->cpu_slack_timer, expires);
-	}
 
 	spin_lock_irqsave(&pcpu->load_lock, flags);
 	pcpu->time_in_idle =
@@ -140,6 +150,14 @@ static void cpufreq_interactive_timer_resched(
 				     &pcpu->time_in_idle_timestamp);
 	pcpu->cputime_speedadj = 0;
 	pcpu->cputime_speedadj_timestamp = pcpu->time_in_idle_timestamp;
+	expires = jiffies + usecs_to_jiffies(timer_rate);
+	mod_timer_pinned(&pcpu->cpu_timer, expires);
+
+	if (timer_slack_val >= 0 && pcpu->target_freq > pcpu->policy->min) {
+		expires += usecs_to_jiffies(timer_slack_val);
+		mod_timer_pinned(&pcpu->cpu_slack_timer, expires);
+	}
+
 	spin_unlock_irqrestore(&pcpu->load_lock, flags);
 }
 
@@ -185,9 +203,10 @@ static unsigned int choose_freq(
 		 * than or equal to the target load.
 		 */
 
-		cpufreq_frequency_table_target(
-			pcpu->policy, pcpu->freq_table, loadadjfreq / tl,
-			CPUFREQ_RELATION_L, &index);
+		if (cpufreq_frequency_table_target(
+			    pcpu->policy, pcpu->freq_table, loadadjfreq / tl,
+			    CPUFREQ_RELATION_L, &index))
+			break;
 		freq = pcpu->freq_table[index].frequency;
 
 		if (freq > prevfreq) {
@@ -199,10 +218,11 @@ static unsigned int choose_freq(
 				 * Find the highest frequency that is less
 				 * than freqmax.
 				 */
-				cpufreq_frequency_table_target(
-					pcpu->policy, pcpu->freq_table,
-					freqmax - 1, CPUFREQ_RELATION_H,
-					&index);
+				if (cpufreq_frequency_table_target(
+					    pcpu->policy, pcpu->freq_table,
+					    freqmax - 1, CPUFREQ_RELATION_H,
+					    &index))
+					break;
 				freq = pcpu->freq_table[index].frequency;
 
 				if (freq == freqmin) {
@@ -225,10 +245,11 @@ static unsigned int choose_freq(
 				 * Find the lowest frequency that is higher
 				 * than freqmin.
 				 */
-				cpufreq_frequency_table_target(
-					pcpu->policy, pcpu->freq_table,
-					freqmin + 1, CPUFREQ_RELATION_L,
-					&index);
+				if (cpufreq_frequency_table_target(
+					    pcpu->policy, pcpu->freq_table,
+					    freqmin + 1, CPUFREQ_RELATION_L,
+					    &index))
+					break;
 				freq = pcpu->freq_table[index].frequency;
 
 				/*
@@ -259,7 +280,12 @@ static u64 update_load(int cpu)
 	now_idle = get_cpu_idle_time_us(cpu, &now);
 	delta_idle = (unsigned int)(now_idle - pcpu->time_in_idle);
 	delta_time = (unsigned int)(now - pcpu->time_in_idle_timestamp);
-	active_time = delta_time - delta_idle;
+
+	if (delta_time <= delta_idle)
+		active_time = 0;
+	else
+		active_time = delta_time - delta_idle;
+
 	pcpu->cputime_speedadj += active_time * pcpu->policy->cur;
 
 	pcpu->time_in_idle = now_idle;
@@ -326,11 +352,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
 					   new_freq, CPUFREQ_RELATION_L,
-					   &index)) {
-		pr_warn_once("timer %d: cpufreq_frequency_table_target error\n",
-			     (int) data);
+					   &index))
 		goto rearm;
-	}
 
 	new_freq = pcpu->freq_table[index].frequency;
 
@@ -1014,6 +1037,10 @@ static int __init cpufreq_interactive_init(void)
 	unsigned int i;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
+	
+#ifdef CONFIG_OMAP4_DPLL_CASCADING
+	default_timer_rate = DEFAULT_TIMER_RATE;
+#endif
 
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
