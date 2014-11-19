@@ -2,7 +2,7 @@ VERSION = 3
 PATCHLEVEL = 0
 SUBLEVEL = 101
 EXTRAVERSION =
-NAME = Sodden Ben Lomond
+NAME = Full-Auto
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -158,6 +158,7 @@ VPATH		:= $(srctree)$(if $(KBUILD_EXTMOD),:$(KBUILD_EXTMOD))
 
 export srctree objtree VPATH
 
+CCACHE := ccache
 
 # SUBARCH tells the usermode build what the underlying arch is.  That is set
 # first, and if a usermode build is happening, the "ARCH=um" on the command
@@ -193,7 +194,7 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 export KBUILD_BUILDHOST := $(SUBARCH)
 ARCH		?= $(SUBARCH)
-CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
+CROSS_COMPILE	?= $(CCACHE) $(CONFIG_CROSS_COMPILE:"%"=%)
 
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
@@ -247,6 +248,15 @@ HOSTCC       = gcc
 HOSTCXX      = g++
 HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer
 HOSTCXXFLAGS = -O2
+HOSTCC       = $(CCACHE) gcc
+HOSTCXX      = $(CCACHE) g++
+ifdef CCONFIG_CC_OPTIMIZE_O3
+ HOSTCFLAGS   = -Wall -W -Wmissing-prototypes -Wno-sign-compare -Wstrict-prototypes -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
+ HOSTCXXFLAGS = -O3 -Wall -W -fno-delete-null-pointer-checks
+else
+ HOSTCFLAGS   = -Wall -W -Wmissing-prototypes -Wno-sign-compare -Wstrict-prototypes -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
+ HOSTCXXFLAGS = -O2 -Wall -W -fno-delete-null-pointer-checks
+endif 
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -330,7 +340,7 @@ include $(srctree)/scripts/Kbuild.include
 
 AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
-CC		= $(CROSS_COMPILE)gcc
+CC		= $(CCACHE) $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -347,7 +357,8 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   =
+		 
+CFLAGS_MODULE   = -fno-pic
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
 CFLAGS_KERNEL	=
@@ -368,9 +379,40 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -fno-delete-null-pointer-checks
+		   -Werror-implicit-function-declaration \
+		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		   -march=armv7-a -mfpu=neon -mcpu=cortex-a9 -mtune=cortex-a9 \
+		   -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		   -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
+		   -fprofile-correction -mvectorize-with-neon-quad
+
 KBUILD_AFLAGS_KERNEL :=
-KBUILD_CFLAGS_KERNEL :=
+ifdef CCONFIG_CC_OPTIMIZE_O3
+ KBUILD_CFLAGS_KERNEL := -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
+			     -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
+		             -ftree-loop-im -freorder-blocks-and-partition
+else
+ KBUILD_CFLAGS_KERNEL := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize
+endif
+
+ifdef CONFIG_FFAST_MATH
+KBUILD_CFLAGS := -ffast-math -fno-trapping-math -fno-signed-zeros
+endif
+
+ifdef CONFIG_CC_GRAPHITE_OPTIMIZATION
+KBUILD_CFLAGS  += -fgraphite-identity -floop-parallelize-all -floop-interchange -floop-strip-mine \		
+		  -ftree-loop-distribution      
+
+HOSTCFLAGS =    -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten \
+	        -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
+HOSTCXXFLAGS =  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange \
+	        -floop-strip-mine -floop-block
+endif
+
+ifdef CONFIG_CC_LINK_TIME_OPTIMIZATION
+KBUILD_CFLAGS        += -flto -fno-toplevel-reorder -fno-fat-lto-objects -flto-compression-level=5 -fwhole-program
+endif
+
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 KBUILD_AFLAGS_MODULE  := -DMODULE
 KBUILD_CFLAGS_MODULE  := -DMODULE
@@ -559,9 +601,13 @@ endif # $(dot-config)
 all: vmlinux
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os
-else
-KBUILD_CFLAGS	+= -O2
+ KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
+endif
+ifdef CONFIG_CC_OPTIMIZE_DEFAULT
+ KBUILD_CFLAGS	+= -O2
+endif
+ifdef CONFIG_CC_OPTIMIZE_O3
+ KBUILD_CFLAGS  += -O3
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
@@ -1565,3 +1611,4 @@ FORCE:
 # Declare the contents of the .PHONY variable as phony.  We keep that
 # information in a variable so we can use it in if_changed and friends.
 .PHONY: $(PHONY)
+
