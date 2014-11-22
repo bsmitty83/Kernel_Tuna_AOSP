@@ -603,6 +603,19 @@ out:
 	return ret;
 }
 
+static ssize_t show_iva_clock(struct cpufreq_policy *policy, char *buf) {
+        struct clk *clk = clk_get(NULL, "dpll_iva_m5x2_ck");
+        return sprintf(buf, "%lu\n", clk->rate/1000);
+}
+
+static struct freq_attr iva_clock = {
+    .attr = {.name = "iva_cur_freq",
+             .mode=0644,
+    },
+    .show = show_iva_clock,
+};
+
+
 struct freq_attr omap_cpufreq_attr_screen_off_freq = {
 	.attr = { .name = "screen_off_max_freq",
 		  .mode = 0644,
@@ -660,6 +673,7 @@ static struct freq_attr *omap_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	&omap_cpufreq_attr_screen_off_freq,
 	&omap_cpufreq_attr_screen_on_freq,
+	&iva_clock,
 	NULL,
 };
 
