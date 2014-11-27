@@ -519,27 +519,6 @@ config OMAP_RFKILL_STE_MODEM
 	  of the modem as well as necessary dynamic pin muxing of AP/CP
 	  interfaces (platform data dependant)
 
-config OMAP4_OVERRIDE_MPU_TRIM
-	bool "Override factory-set trim value for MPU DPLL clock"
-	depends on ARCH_OMAP4
-	default n
-	help
-	  Override factory-set trim value for MPU DPLL to allow locking at 
-	  rates >2.4GHz (required for MPU frequencies >1.2GHz).
-
-config OMAP_SMARTREFLEX_CUSTOM_SENSOR
-	bool "Enable support for custom NSensor and PSensor values"
-	depends on OMAP_SMARTREFLEX
-	default n
-	help
-	  Enable support for custom NSensor and PSensor values in the
-	  voltage definitions used for SmartReflex calibration.
-
-config OMAP4460_OVERCLOCKING
-	bool "Enable additional frequencies for overclocking etc support for OMAP4460."
-	depends on OMAP_SMARTREFLEX_CUSTOM_SENSOR
-	default n
-
 endmenu
 
 config FORCE_FAST_CHARGE
