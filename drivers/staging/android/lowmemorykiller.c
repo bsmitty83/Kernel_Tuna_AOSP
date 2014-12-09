@@ -370,27 +370,27 @@ static const struct kparam_array __param_arr_adj = {
 };
 #endif
 
-module_param_named(cost, lowmem_shrinker.seeks, int, S_IRUGO | S_IWUSR);
+module_param_named(cost, lowmem_shrinker.seeks, int, S_IRWXG);
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 __module_param_call(MODULE_PARAM_PREFIX, adj,
 		    &lowmem_adj_array_ops,
 		    .arr = &__param_arr_adj,
-		    -1, S_IRUGO | S_IWUSR);
+		    -1, S_IRWXG);
 __MODULE_PARM_TYPE(adj, "array of int");
 #else
 module_param_array_named(adj, lowmem_adj, int, &lowmem_adj_size,
-			 S_IRUGO | S_IWUSR);
+			 S_IRWXG);
 #endif
 module_param_array_named(minfree, lowmem_minfree, uint, &lowmem_minfree_size,
-			 S_IRUGO | S_IWUSR);
-module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
+			 S_IRWXG);
+module_param_named(debug_level, lowmem_debug_level, uint, S_IRWXG);
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
-module_param_named(donotkill_proc, donotkill_proc.enabled, uint, S_IRUGO | S_IWUSR);
+module_param_named(donotkill_proc, donotkill_proc.enabled, uint, S_IRWXG);
 module_param_array_named(donotkill_proc_names, donotkill_proc.names, charp,
-			 &donotkill_proc.names_count, S_IRUGO | S_IWUSR);
-module_param_named(donotkill_sysproc, donotkill_sysproc.enabled, uint, S_IRUGO | S_IWUSR);
+			 &donotkill_proc.names_count, S_IRWXG);
+module_param_named(donotkill_sysproc, donotkill_sysproc.enabled, uint, S_IRWXG);
 module_param_array_named(donotkill_sysproc_names, donotkill_sysproc.names, charp,
-			 &donotkill_sysproc.names_count, S_IRUGO | S_IWUSR);
+			 &donotkill_sysproc.names_count, S_IRWXG);
 #endif
 module_init(lowmem_init);
 module_exit(lowmem_exit);
