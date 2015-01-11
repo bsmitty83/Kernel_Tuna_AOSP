@@ -32,7 +32,7 @@
 #include <crypto/algapi.h>
 #include <crypto/cryptd.h>
 #include <crypto/ablk_helper.h>
-#include <asm/simd.h>
+#include <asm-generic/simd.h>
 
 int ablk_set_key(struct crypto_ablkcipher *tfm, const u8 *key,
 		 unsigned int key_len)
@@ -125,8 +125,7 @@ int ablk_init_common(struct crypto_tfm *tfm, const char *drv_name)
 	struct cryptd_ablkcipher *cryptd_tfm;
 
 	cryptd_tfm = cryptd_alloc_ablkcipher(drv_name, 0, 0);
-	if (IS_ERR(cryptd_tfm))
-		return PTR_ERR(cryptd_tfm);
+;
 
 	ctx->cryptd_tfm = cryptd_tfm;
 	tfm->crt_ablkcipher.reqsize = sizeof(struct ablkcipher_request) +
