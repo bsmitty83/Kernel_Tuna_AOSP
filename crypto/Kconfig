@@ -302,6 +302,7 @@ comment "Digest"
 config CRYPTO_CRC32C
 	tristate "CRC32c CRC algorithm"
 	select CRYPTO_HASH
+	select CRC32
 	help
 	  Castagnoli, et al Cyclic Redundancy-Check Algorithm.  Used
 	  by iSCSI for header and data digests and by others.
@@ -610,6 +611,11 @@ config CRYPTO_AES_ARM_BS
 	  around 25%. (CBC encryption speed is not affected by this driver.)
 	  This implementation does not rely on any lookup tables so it is
 	  believed to be invulnerable to cache timing attacks.
+
+config CRYPTO_ABLK_HELPER
+	tristate
+	select CRYPTO_CRYPTD
+
 
 config CRYPTO_ANUBIS
 	tristate "Anubis cipher algorithm"

@@ -412,15 +412,6 @@ static int mtp_create_bulk_endpoints(struct mtp_dev *dev,
 	ep->driver_data = dev;		/* claim the endpoint */
 	dev->ep_out = ep;
 
-	ep = usb_ep_autoconfig(cdev->gadget, out_desc);
-	if (!ep) {
-		DBG(cdev, "usb_ep_autoconfig for ep_out failed\n");
-		return -ENODEV;
-	}
-	DBG(cdev, "usb_ep_autoconfig for mtp ep_out got %s\n", ep->name);
-	ep->driver_data = dev;		/* claim the endpoint */
-	dev->ep_out = ep;
-
 	ep = usb_ep_autoconfig(cdev->gadget, intr_desc);
 	if (!ep) {
 		DBG(cdev, "usb_ep_autoconfig for ep_intr failed\n");
@@ -947,6 +938,11 @@ static int mtp_open(struct inode *ip, struct file *fp)
 	struct usb_descriptor_header **descriptors;
 
 	printk(KERN_INFO "mtp_open\n");
+	if (!_mtp_dev->cdev) {
+		WARN(1, "_mtp_dev->cdev is NULL in mtp_open\n");
+		return -ENODEV;
+	}
+
 	if (mtp_lock(&_mtp_dev->open_excl))
 		return -EBUSY;
 
