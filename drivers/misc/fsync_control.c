@@ -10,12 +10,10 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/fsync_control.h>
 
-#define FSYNCCONTROL_VERSION 1
-
-static bool fsync_enabled = true;
-
-bool fsynccontrol_fsync_enabled()
+bool fsynccontrol_fsync_enabled(void)
 {
     return fsync_enabled;
 }
