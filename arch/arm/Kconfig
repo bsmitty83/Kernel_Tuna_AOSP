@@ -2108,6 +2108,12 @@ config ARCH_SUSPEND_POSSIBLE
 		CPU_V6 || CPU_V6K || CPU_V7 || CPU_XSC3 || CPU_XSCALE
 	def_bool y
 
+
+config ARCH_HIBERNATION_POSSIBLE
+	bool
+	depends on MMU
+	default y if ARCH_SUSPEND_POSSIBLE
+
 endmenu
 
 source "net/Kconfig"
