@@ -47,6 +47,6 @@ $(obj)/csumpartialcopy.o:	$(obj)/csumpartialcopygeneric.S
 $(obj)/csumpartialcopyuser.o:	$(obj)/csumpartialcopygeneric.S
 
 ifeq ($(CONFIG_KERNEL_MODE_NEON),y)
-  NEON_FLAGS			:= -mfloat-abi=softfp -mfpu=neon-vfpv4
+  NEON_FLAGS			:= -mhard-float=-Wa -mfpu=neon-vfpv4
 
 endif
