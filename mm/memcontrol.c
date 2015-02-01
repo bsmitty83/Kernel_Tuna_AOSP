@@ -2911,9 +2911,9 @@ int mem_cgroup_try_charge_swapin(struct mm_struct *mm,
 	mem = try_get_mem_cgroup_from_page(page);
 	if (!mem)
 		goto charge_cur_mm;
-	*memcgp = memcg;
+	*memcgp = mem;
 	ret = __mem_cgroup_try_charge(NULL, mask, 1, memcgp, true);
-	css_put(&memcg->css);
+	css_put(&mem->css);
 	return ret;
 charge_cur_mm:
 	if (unlikely(!mm))
@@ -3359,9 +3359,9 @@ int mem_cgroup_prepare_migration(struct page *page,
 	if (!mem)
 		return 0;
 
-	*memcgp = memcg;
+	*memcgp = mem;
 	ret = __mem_cgroup_try_charge(NULL, gfp_mask, 1, memcgp, false);
-	css_put(&memcg->css);/* drop extra refcnt */
+	css_put(&mem->css);/* drop extra refcnt */
 	if (ret || *memcgp == NULL) {
 		if (PageAnon(page)) {
 			lock_page_cgroup(pc);
@@ -3991,8 +3991,8 @@ static inline u64 mem_cgroup_usage(struct mem_cgroup *mem, bool swap)
 	u64 val;
 
 #ifdef CONFIG_CGROUP_MEM_RES_CTLR_KMEM
-		if (!memcg->kmem_independent_accounting)
-			val = res_counter_read_u64(&memcg->kmem, RES_USAGE);
+		if (!mem->kmem_independent_accounting)
+			val = res_counter_read_u64(&mem->kmem, RES_USAGE);
 #endif
 	if (!mem_cgroup_is_root(mem)) {
 		if (!swap)
@@ -4033,7 +4033,7 @@ static u64 mem_cgroup_read(struct cgroup *cont, struct cftype *cft)
 		break;
 #ifdef CONFIG_CGROUP_MEM_RES_CTLR_KMEM
 	case _KMEM:
-		val = res_counter_read_u64(&memcg->kmem, name);
+		val = res_counter_read_u64(&mem->kmem, name);
 		break;
 #endif
 	default:
@@ -5161,7 +5161,7 @@ mem_cgroup_create(struct cgroup_subsys *ss, struct cgroup *cont)
 	if (parent && parent->use_hierarchy) {
 		res_counter_init(&mem->res, &parent->res);
 		res_counter_init(&mem->memsw, &parent->memsw);
-		res_counter_init(&memcg->kmem, &parent->kmem);
+		res_counter_init(&mem->kmem, &parent->kmem);
 		/*
 		 * We increment refcnt of the parent to ensure that we can
 		 * safely access it on res_counter_charge/uncharge.
@@ -5172,7 +5172,7 @@ mem_cgroup_create(struct cgroup_subsys *ss, struct cgroup *cont)
 	} else {
 		res_counter_init(&mem->res, NULL);
 		res_counter_init(&mem->memsw, NULL);
-		res_counter_init(&memcg->kmem, NULL);
+		res_counter_init(&mem->kmem, NULL);
 	}
 	mem->last_scanned_child = 0;
 	mem->last_scanned_node = MAX_NUMNODES;
@@ -5204,7 +5204,7 @@ static void mem_cgroup_destroy(struct cgroup_subsys *ss,
 	struct mem_cgroup *mem = mem_cgroup_from_cont(cont);
 
 	mem_cgroup_put(mem);
-	vmpressure_cleanup(&memcg->vmpressure);
+	vmpressure_cleanup(&mem->vmpressure);
 }
 
 static int mem_cgroup_populate(struct cgroup_subsys *ss,
