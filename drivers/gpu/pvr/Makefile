@@ -1,5 +1,5 @@
 ccflags-y = -DLINUX -D__linux__ -DANDROID -DPVR_BUILD_DIR="\"omap4430_android\""
-ccflags-y += -Idrivers/gpu/pvr -Idrivers/gpu/pvr/omap4 -Idrivers/video/omap2 -O2 -mtune=cortex-a9 -marm -march=armv7-a -mfpu=neon 
+ccflags-y += -Idrivers/gpu/pvr -Idrivers/gpu/pvr/omap4 -Idrivers/video/omap2 
 
 ccflags-y += \
 	-DSUPPORT_SGX \
