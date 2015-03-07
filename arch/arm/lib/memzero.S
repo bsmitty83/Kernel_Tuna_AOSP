@@ -11,6 +11,9 @@
 #include <asm/assembler.h>
 
 	.text
+#ifdef NEON_MEMORY_FUNCTIONS
+	.fpu neon
+#endif
 	.align	5
 	.word	0
 /*
@@ -29,6 +32,9 @@
  * The pointer is now aligned and the length is adjusted.  Try doing the
  * memzero again.
  */
+	.syntax unified
+
+
 
 ENTRY(__memzero)
 	mov	r2, #0			@ 1

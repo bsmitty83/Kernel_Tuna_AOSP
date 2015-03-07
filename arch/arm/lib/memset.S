@@ -13,6 +13,9 @@
 #include <asm/assembler.h>
 
 	.text
+#ifdef NEON_MEMORY_FUNCTIONS
+	.fpu neon
+#endif
 	.align	5
 	.word	0
 
@@ -66,9 +69,7 @@ ENTRY(memset)
 	tst	r2, #16
 	stmneia	r0!, {r1, r3, ip, lr}
 	ldr	lr, [sp], #4
-
 #else
-
 /*
  * This version aligns the destination pointer in order to write
  * whole cache lines at once.

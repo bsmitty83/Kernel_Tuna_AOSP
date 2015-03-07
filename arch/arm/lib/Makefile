@@ -3,6 +3,7 @@
 #
 # Copyright (C) 1995-2000 Russell King
 #
+ccflags-y = -std=gnu99 -Ofast -Wall -DPRELOAD_LINE_SIZE=64 -DPRELOAD_OFFSET=192 -DUSE_NEON
 
 lib-y		:= backtrace.o changebit.o csumipv6.o csumpartial.o   \
 		   csumpartialcopy.o csumpartialcopyuser.o clearbit.o \
