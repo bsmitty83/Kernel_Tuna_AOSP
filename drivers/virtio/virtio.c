@@ -2,6 +2,10 @@
 #include <linux/spinlock.h>
 #include <linux/virtio_config.h>
 
+#ifdef CONFIG_MACH_TUNA
+#include "../../arch/arm/mach-omap2/board-tuna.h"
+#endif
+
 /* Unique numbering for virtio devices. */
 static unsigned int dev_index;
 
@@ -136,7 +140,15 @@ static int virtio_dev_probe(struct device *_d)
 
 	dev->config->finalize_features(dev);
 
-	err = drv->probe(dev);
+#ifdef CONFIG_MACH_TUNA
+	if (!tuna_is_charger_mode()) {
+#endif
+		err = drv->probe(dev);
+#ifdef CONFIG_MACH_TUNA
+	} else {
+		err = -EINVAL;
+	}
+#endif
 	if (err)
 		add_status(dev, VIRTIO_CONFIG_S_FAILED);
 	else

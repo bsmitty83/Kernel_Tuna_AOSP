@@ -58,6 +58,8 @@ enum pogo_power_state {
 void tuna_otg_pogo_charger(enum pogo_power_state);
 void tuna_otg_set_dock_switch(int enable);
 
+bool tuna_is_charger_mode(void);
+
 extern struct mmc_platform_data tuna_wifi_data;
 extern struct class *sec_class;
 

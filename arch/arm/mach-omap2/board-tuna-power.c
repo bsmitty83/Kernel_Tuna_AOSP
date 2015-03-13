@@ -78,7 +78,11 @@ struct temp_adc_table_data {
 
 static DEFINE_SPINLOCK(charge_en_lock);
 static int charger_state;
-static bool is_charging_mode;
+static bool is_charging_mode = false;
+
+bool tuna_is_charger_mode(void) {
+	return is_charging_mode;
+}
 
 static struct temp_adc_table_data temper_table_maguro[] = {
 	/* ADC, Temperature (C/10) */
