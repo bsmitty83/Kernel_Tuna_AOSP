@@ -968,6 +968,39 @@ config CC_GRAPHITE_OPTIMIZATION
          Enabling this option will turn on -floop-interchange,
          -floop-strip-mine and -floop-block for KBUILD_CFLAGS.
 
+config LTO_MENU
+	bool "Enable gcc link time optimization (LTO)"
+	# Only tested on X86 for now. For other architectures you likely
+	# have to fix some things first, like adding asmlinkages etc.
+	depends on X86
+	# lto does not support excluding flags for specific files
+	# right now. Can be removed if that is fixed.
+	depends on !FUNCTION_TRACER
+	help
+	  
+config LTO_DISABLE
+	bool "Disable LTO again"
+	depends on LTO_MENU
+	default n
+	help
+	  This option is merely here so that allyesconfig or allmodconfig do
+	  not enable LTO. If you want to actually use LTO do not enable.
+
+config LTO
+	bool
+	default y
+	depends on LTO_MENU && !LTO_DISABLE
+
+config LTO_DEBUG
+	bool "Enable LTO compile time debugging"
+	depends on LTO
+	help
+
+config LTO_CP_CLONE
+	bool "Allow aggressive cloning for function specialization"
+	depends on LTO
+	help
+
 config SYSCTL
 	bool
 
@@ -1428,6 +1461,8 @@ config MODULE_FORCE_UNLOAD
 
 config MODVERSIONS
 	bool "Module versioning support"
+	# LTO should work with gcc 4.9
+	depends on !LTO
 	help
 	  Usually, you have to use modules compiled with your kernel.
 	  Saying Y here makes it sometimes possible to use modules
