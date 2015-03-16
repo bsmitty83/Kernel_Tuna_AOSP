@@ -29,6 +29,7 @@
 #include <linux/mutex.h>
 #include <linux/shmem_fs.h>
 #include <linux/ashmem.h>
+#include <linux/types.h>
 
 #define ASHMEM_NAME_PREFIX "dev/ashmem/"
 #define ASHMEM_NAME_PREFIX_LEN (sizeof(ASHMEM_NAME_PREFIX) - 1)
