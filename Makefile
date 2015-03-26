@@ -250,7 +250,7 @@ HOSTCFLAGS   = -Wall -O2 -fomit-frame-pointer
 HOSTCXXFLAGS = -O2
 HOSTCC       = $(CCACHE) gcc
 HOSTCXX      = $(CCACHE) g++
-ifdef CCONFIG_CC_OPTIMIZE_O3
+ifdef CC_OPTIMIZE_O3
  HOSTCFLAGS   = -Wall -W -Wno-sign-compare  -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
  HOSTCXXFLAGS = -O3 -Wall -W -fno-delete-null-pointer-checks
 else
@@ -387,7 +387,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wno-trigraphs \
 		   -fprofile-correction -mvectorize-with-neon-quad
 
 KBUILD_AFLAGS_KERNEL :=
-ifdef CCONFIG_CC_OPTIMIZE_O3
+ifdef CC_OPTIMIZE_O3
  KBUILD_CFLAGS_KERNEL := -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
 			     -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
 		             -ftree-loop-im -freorder-blocks-and-partition
@@ -395,11 +395,11 @@ else
  KBUILD_CFLAGS_KERNEL := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize -Wstrict-prototypes 
 endif
 
-ifdef CONFIG_FFAST_MATH
+ifdef FFAST_MATH
 KBUILD_CFLAGS := -ffast-math -fno-trapping-math -fno-signed-zeros
 endif
 
-ifdef CONFIG_CC_GRAPHITE_OPTIMIZATION
+ifdef CC_GRAPHITE_OPTIMIZATION
 KBUILD_CFLAGS  += -fgraphite-identity -floop-parallelize-all -floop-interchange -floop-strip-mine \		
 		  -ftree-loop-distribution      
 
@@ -409,7 +409,7 @@ HOSTCXXFLAGS =  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all 
 	        -floop-strip-mine -floop-block
 endif
 
-ifdef CONFIG_CC_LINK_TIME_OPTIMIZATION
+ifdef CC_LINK_TIME_OPTIMIZATION
 KBUILD_CFLAGS        += -flto -fno-toplevel-reorder -fno-fat-lto-objects -flto-compression-level=5 -fwhole-program
 endif
 
@@ -600,13 +600,13 @@ endif # $(dot-config)
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
 
-ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
+ifdef CC_OPTIMIZE_FOR_SIZE
  KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
 endif
-ifdef CONFIG_CC_OPTIMIZE_DEFAULT
+ifdef CC_OPTIMIZE_DEFAULT
  KBUILD_CFLAGS	+= -O2
 endif
-ifdef CONFIG_CC_OPTIMIZE_O3
+ifdef CC_OPTIMIZE_O3
  KBUILD_CFLAGS  += -O3
 endif
 
