@@ -405,8 +405,8 @@ config FRONTSWAP
 	  If unsure, say Y to enable frontswap.
 
 config ZBUD
-	tristate
-	default n
+	bool "zbud special purpose allocator for storing compressed pages."
+	default y
 	help
 	  A special purpose allocator for storing compressed pages.
 	  It is designed to store up to two compressed pages per physical
