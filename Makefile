@@ -379,7 +379,6 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -Werror-implicit-function-declaration \
 		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
 		   -march=armv7-a -mfpu=neon -mcpu=cortex-a9 -mtune=cortex-a9 \
 		   -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
@@ -388,11 +387,19 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wno-trigraphs \
 
 KBUILD_AFLAGS_KERNEL :=
 ifdef CC_OPTIMIZE_O3
- KBUILD_CFLAGS_KERNEL := -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
-			     -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
-		             -ftree-loop-im -freorder-blocks-and-partition
+KBUILD_CFLAGS :=     -Wall -Wundef -Wno-trigraphs \
+		     -fno-strict-aliasing -fno-common \
+		     -Werror-implicit-function-declaration \
+		     -Wno-format-security \
+		     -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
+	             -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
+		     -ftree-loop-im -freorder-blocks-and-partition \
+		     -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		     -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
+		     -fprofile-correction -mvectorize-with-neon-quad
+				
 else
- KBUILD_CFLAGS_KERNEL := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize -Wstrict-prototypes 
+KBUILD_CFLAGS := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize -Wstrict-prototypes 
 endif
 
 ifdef FFAST_MATH
@@ -400,17 +407,23 @@ KBUILD_CFLAGS := -ffast-math -fno-trapping-math -fno-signed-zeros
 endif
 
 ifdef CC_GRAPHITE_OPTIMIZATION
-KBUILD_CFLAGS  += -fgraphite-identity -floop-parallelize-all -floop-interchange -floop-strip-mine \		
-		  -ftree-loop-distribution      
+KBUILD_CFLAGS  +=    -Wall -Wundef -Wno-trigraphs \
+		     -fno-strict-aliasing -fno-common \
+		     -Werror-implicit-function-declaration \
+		     -Wno-format-security \
+		     -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
+	             -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
+		     -ftree-loop-im -freorder-blocks-and-partition \
+		     -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		     -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
+		     -fprofile-correction -mvectorize-with-neon-quad
+		     -fgraphite-identity -floop-parallelize-all -floop-interchange -floop-strip-mine \		
+		     -ftree-loop-distribution      
 
 HOSTCFLAGS =    -Wall -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten \
 	        -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
 HOSTCXXFLAGS =  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange \
 	        -floop-strip-mine -floop-block
-endif
-
-ifdef CC_LINK_TIME_OPTIMIZATION
-KBUILD_CFLAGS        += -flto -fno-toplevel-reorder -fno-fat-lto-objects -flto-compression-level=5 -fwhole-program
 endif
 
 KBUILD_AFLAGS   := -D__ASSEMBLY__
