@@ -454,6 +454,7 @@ export KBUILD_AFLAGS_KERNEL KBUILD_CFLAGS_KERNEL
 export KBUILD_ARFLAGS
 
 ifdef CONFIG_LTO
+LINKFLAGS	= -flto -fuse-linker-plugin -flto-compression-level=5
 # LTO gcc creates a lot of files in TMPDIR, and with /tmp as tmpfs
 # it's easy to drive the machine OOM. Use the object directory
 # instead.
