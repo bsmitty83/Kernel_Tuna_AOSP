@@ -247,15 +247,15 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 HOSTCC       = gcc
 HOSTCXX      = g++
 HOSTCFLAGS   = -Wall -O2 -fomit-frame-pointer
-HOSTCXXFLAGS = -O2
+HOSTCXXFLAGS = $(LINKFLAGS)  -O2
 HOSTCC       = $(CCACHE) gcc
 HOSTCXX      = $(CCACHE) g++
 ifdef CC_OPTIMIZE_O3
- HOSTCFLAGS   = -Wall -W -Wno-sign-compare  -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
- HOSTCXXFLAGS = -O3 -Wall -W -fno-delete-null-pointer-checks
+HOSTCFLAGS   = -Wall -W -Wno-sign-compare  -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
+HOSTCXXFLAGS =  $(LINKFLAGS) -O3 -Wall -W -fno-delete-null-pointer-checks
 else
- HOSTCFLAGS   = -Wall -W  -Wstrict-prototypes -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
- HOSTCXXFLAGS = -O2 -Wall -W -fno-delete-null-pointer-checks
+HOSTCFLAGS   = -Wall -W  -Wstrict-prototypes -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
+HOSTCXXFLAGS = $(LINKFLAGS) -O2 -Wall -W -fno-delete-null-pointer-checks
 endif 
 
 # Decide whether to build built-in, modular, or both.
@@ -427,7 +427,7 @@ KBUILD_CFLAGS  +=    -Wall -Wundef -Wno-trigraphs \
 
 HOSTCFLAGS =    -Wall -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten \
 	        -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
-HOSTCXXFLAGS =  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange \
+HOSTCXXFLAGS = $(LINKFLAGS)  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange \
 	        -floop-strip-mine -floop-block
 endif
 
