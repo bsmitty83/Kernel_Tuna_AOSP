@@ -47,9 +47,9 @@
  */
 #define EXT_DEBUG__
 #ifdef EXT_DEBUG
-#define ext_debug(fmt, ...)	printk(fmt, ##__VA_ARGS__)
+#define ext_debug(a...)		printk(a)
 #else
-#define ext_debug(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
+#define ext_debug(a...)
 #endif
 
 /*
