@@ -32,8 +32,6 @@
  * The pointer is now aligned and the length is adjusted.  Try doing the
  * memzero again.
  */
-	.syntax unified
-
 
 
 ENTRY(__memzero)
