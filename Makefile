@@ -251,8 +251,8 @@ HOSTCXXFLAGS = -O2
 HOSTCC       = $(CCACHE) gcc
 HOSTCXX      = $(CCACHE) g++
 ifdef CC_OPTIMIZE_O3
- HOSTCFLAGS   = -Wall -W -Wno-sign-compare  -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
- HOSTCXXFLAGS = -O3 -Wall -W -fno-delete-null-pointer-checks
+ HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer
+ HOSTCXXFLAGS = -O3 
 else
  HOSTCFLAGS   = -Wall -W  -Wstrict-prototypes -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
  HOSTCXXFLAGS = -O2 -Wall -W -fno-delete-null-pointer-checks
@@ -357,12 +357,13 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-		 
-CFLAGS_MODULE   = 
-AFLAGS_MODULE   =
-LDFLAGS_MODULE  =
-CFLAGS_KERNEL	=
-AFLAGS_KERNEL	=
+
+GRAPHITE = -fgraphite-identity -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block -floop-flatten -floop-nest-optimize -ftree-parallelize-loops=4		 
+CFLAGS_MODULE   = $(GRAPHITE) 
+AFLAGS_MODULE   = $(GRAPHITE)
+LDFLAGS_MODULE  = $(GRAPHITE)
+CFLAGS_KERNEL	= $(GRAPHITE)
+AFLAGS_KERNEL	= $(GRAPHITE)
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 
@@ -375,7 +376,7 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := -Wall -Wundef -Wno-trigraphs \
+KBUILD_CFLAGS   := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
@@ -387,7 +388,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wno-trigraphs \
 
 KBUILD_AFLAGS_KERNEL :=
 ifdef CC_OPTIMIZE_O3
-KBUILD_CFLAGS :=     -Wall -Wundef -Wno-trigraphs \
+KBUILD_CFLAGS := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs \
 		     -fno-strict-aliasing -fno-common \
 		     -Werror-implicit-function-declaration \
 		     -Wno-format-security \
