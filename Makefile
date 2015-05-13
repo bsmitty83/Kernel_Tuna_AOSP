@@ -246,15 +246,15 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -O2 -fomit-frame-pointer
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer
 HOSTCXXFLAGS = -O2
 HOSTCC       = $(CCACHE) gcc
 HOSTCXX      = $(CCACHE) g++
 ifdef CC_OPTIMIZE_O3
- HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer
- HOSTCXXFLAGS = -O3 
+ HOSTCFLAGS   = -Wall -W -Wmissing-prototypes -Wno-sign-compare -Wstrict-prototypes -Wno-unused-parameter -Wno-missing-field-initializers -O3 -fno-delete-null-pointer-checks
+ HOSTCXXFLAGS = -O3 -Wall -W -fno-delete-null-pointer-checks
 else
- HOSTCFLAGS   = -Wall -W  -Wstrict-prototypes -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
+ HOSTCFLAGS   = -Wall -W -Wmissing-prototypes -Wno-sign-compare -Wstrict-prototypes -Wno-unused-parameter -Wno-missing-field-initializers -O2 -fno-delete-null-pointer-checks
  HOSTCXXFLAGS = -O2 -Wall -W -fno-delete-null-pointer-checks
 endif 
 
@@ -376,7 +376,44 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs \
+KBUILD_CFLAGS   := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs -Wstrict-prototypes \
+		   -fno-strict-aliasing -fno-common \
+		   -Werror-implicit-function-declaration \
+		   -Wno-format-security \
+		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		   -march=armv7-a -mfpu=neon -mcpu=cortex-a9 -mtune=cortex-a9 \
+
+KBUILD_AFLAGS_KERNEL :=
+ifdef CC_OPTIMIZE_O3
+KBUILD_CFLAGS   := $(GRAPHITE) -O3 -Wall -Wundef -Wno-trigraphs -Wstrict-prototypes \
+		   -fno-strict-aliasing -fno-common \
+		   -Werror-implicit-function-declaration \
+		   -Wno-format-security \
+		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		   -march=armv7-a -mfpu=neon -mcpu=cortex-a9 -mtune=cortex-a9 \
+		   -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		   -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
+		   -fprofile-correction -mvectorize-with-neon-quad
+				
+else
+KBUILD_CFLAGS_KERNEL := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize
+endif
+
+ifdef FFAST_MATH
+KBUILD_CFLAGS   := $(GRAPHITE) -O3 -Wall -Wundef -Wno-trigraphs -Wstrict-prototypes \
+		   -fno-strict-aliasing -fno-common \
+		   -Werror-implicit-function-declaration \
+		   -Wno-format-security \
+		   -fmodulo-sched -fmodulo-sched-allow-regmoves \
+		   -march=armv7-a -mfpu=neon -mcpu=cortex-a9 -mtune=cortex-a9 \
+		   -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
+		   -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
+		   -fprofile-correction -mvectorize-with-neon-quad \
+	           -ffast-math -fno-trapping-math -fno-signed-zeros
+endif
+
+ifdef CC_GRAPHITE_OPTIMIZATION
+KBUILD_CFLAGS   := $(GRAPHITE) -O3 -Wall -Wundef -Wno-trigraphs -Wstrict-prototypes \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
@@ -386,42 +423,7 @@ KBUILD_CFLAGS   := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs \
 		   -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
 		   -fprofile-correction -mvectorize-with-neon-quad
 
-KBUILD_AFLAGS_KERNEL :=
-ifdef CC_OPTIMIZE_O3
-KBUILD_CFLAGS := $(GRAPHITE) -Wall -Wundef -Wno-trigraphs \
-		     -fno-strict-aliasing -fno-common \
-		     -Werror-implicit-function-declaration \
-		     -Wno-format-security \
-		     -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
-	             -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
-		     -ftree-loop-im -freorder-blocks-and-partition \
-		     -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
-		     -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
-		     -fprofile-correction -mvectorize-with-neon-quad
-				
-else
-KBUILD_CFLAGS := -O2 -mtune=cortex-a9 -march=armv7-a -mfpu=neon -ftree-vectorize -Wstrict-prototypes 
-endif
-
-ifdef FFAST_MATH
-KBUILD_CFLAGS := -ffast-math -fno-trapping-math -fno-signed-zeros
-endif
-
-ifdef CC_GRAPHITE_OPTIMIZATION
-KBUILD_CFLAGS  +=    -Wall -Wundef -Wno-trigraphs \
-		     -fno-strict-aliasing -fno-common \
-		     -Werror-implicit-function-declaration \
-		     -Wno-format-security \
-		     -O3 -mtune=cortex-a9 -march=armv7-a -mfpu=neon \
-	             -ftree-vectorize -ftracer -fsched-pressure -fsched-spec-load -fgcse-las \
-		     -ftree-loop-im -freorder-blocks-and-partition \
-		     -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
-		     -fno-delete-null-pointer-checks -pipe -funroll-loops -fvariable-expansion-in-unroller \
-		     -fprofile-correction -mvectorize-with-neon-quad
-		     -fgraphite-identity -floop-parallelize-all -floop-interchange -floop-strip-mine \		
-		     -ftree-loop-distribution      
-
-HOSTCFLAGS =    -Wall -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten \
+HOSTCFLAGS =    -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer -fgcse-las -fgraphite -floop-flatten \
 	        -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
 HOSTCXXFLAGS =  -O3 -fgcse-las -fgraphite -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange \
 	        -floop-strip-mine -floop-block
@@ -630,6 +632,7 @@ ifneq ($(CONFIG_FRAME_WARN),0)
 KBUILD_CFLAGS += $(call cc-option,-Wframe-larger-than=${CONFIG_FRAME_WARN})
 endif
 
+
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 
@@ -694,13 +697,6 @@ KBUILD_CFLAGS	+= $(call cc-option,-fno-strict-overflow)
 
 # conserve stack if available
 KBUILD_CFLAGS   += $(call cc-option,-fconserve-stack)
-
-ifdef CONFIG_CC_OPTIMIZE_O3
-# disallow errors like 'EXPORT_GPL(foo);' with missing header
-KBUILD_CFLAGS   += $(call cc-option,-Werror=implicit-int)
-# require functions to have arguments in prototypes, not empty 'int foo()'
-KBUILD_CFLAGS   += $(call cc-option,-Werror=strict-prototypes)
-endif
 
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
