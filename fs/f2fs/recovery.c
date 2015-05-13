@@ -296,19 +296,12 @@ static int do_recover_data(struct f2fs_sb_info *sbi, struct inode *inode,
 	struct node_info ni;
 	int err = 0, recovered = 0;
 
-	/* step 1: recover xattr */
-	if (IS_INODE(page)) {
-		recover_inline_xattr(inode, page);
-	} else if (f2fs_has_xattr_block(ofs_of_node(page))) {
-		recover_xattr_data(inode, page, blkaddr);
-		goto out;
-	}
-
-	/* step 2: recover inline data */
 	if (recover_inline_data(inode, page))
 		goto out;
 
-	/* step 3: recover data indices */
+	if (recover_xattr_data(inode, page, blkaddr))
+		goto out;
+
 	start = start_bidx_of_node(ofs_of_node(page), fi);
 	if (IS_INODE(page))
 		end = start + ADDRS_PER_INODE(fi);
