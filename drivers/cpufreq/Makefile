@@ -17,6 +17,7 @@ obj-$(CONFIG_CPU_FREQ_GOV_POWERSAVE)		+= cpufreq_powersave.o
 obj-$(CONFIG_CPU_FREQ_GOV_SAKURACTIVE)  	+= cpufreq_sakuractive.o
 obj-$(CONFIG_CPU_FREQ_GOV_USERSPACE)		+= cpufreq_userspace.o
 obj-$(CONFIG_CPU_FREQ_GOV_WHEATLEY)		+= cpufreq_wheatley.o
+obj-$(CONFIG_CPU_FREQ_GOV_ZENERACTIVE)  	+= cpufreq_zeneractive.o
 
 
 # CPUfreq cross-arch helpers
