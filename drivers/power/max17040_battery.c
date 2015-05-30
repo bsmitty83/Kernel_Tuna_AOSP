@@ -52,6 +52,16 @@
 #define STATUS_ABNORMAL_TEMP	0x2
 #define STATUS_CHARGE_TIMEOVER	0x3
 
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+#define VOLTAGE_MIN_DESIGN 	3200000
+#define VOLTAGE_MAX_DESIGN	4150000
+#define MIN_OVERRIDE_SOC	15
+
+u32 vcell_prev = 0;
+u32 vcell_adj;
+static bool override_enabled = false;
+#endif
+
 struct max17040_chip {
 	struct i2c_client		*client;
 	struct work_struct		work;
@@ -188,6 +198,27 @@ static void max17040_get_soc(struct i2c_client *client)
 	u32 fmin_cap = TO_FIXED(chip->pdata->min_capacity, 0);
 	u16 regval;
 
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+	u32 min_override = TO_FIXED(MIN_OVERRIDE_SOC, 0);
+	u32 vcell_curr = chip->vcell;
+	u32 vscale_div = (VOLTAGE_MAX_DESIGN - VOLTAGE_MIN_DESIGN) / 100;
+
+	if (vcell_prev == 0) {
+		vcell_prev = vcell_curr;
+	}
+
+	if ( (chip->status != POWER_SUPPLY_STATUS_CHARGING) && (vcell_prev < vcell_curr) ||
+	     (chip->status == POWER_SUPPLY_STATUS_CHARGING) && (vcell_prev > vcell_curr) ) {
+		vcell_curr = vcell_prev;
+	}
+
+	vcell_curr = (vcell_curr + vcell_prev) / 2;
+	vcell_prev = vcell_curr;
+	vcell_adj = 100 - ((VOLTAGE_MAX_DESIGN - vcell_curr) / vscale_div);
+	if (vcell_adj < 0) {
+		vcell_adj = 0;
+	}
+#endif
 	if (max17040_read_reg(client, MAX17040_SOC_MSB, &regval)) {
 		dev_warn(&client->dev, "i2c error, not updating soc\n");
 		return;
@@ -195,6 +226,16 @@ static void max17040_get_soc(struct i2c_client *client)
 
 	/* convert msb.lsb to Q8.8 */
 	val = TO_FIXED(regval >> 8, regval & 0xff);
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+	u32 vcell_adj_fixed = TO_FIXED(vcell_adj, 0);
+	if (val > vcell_adj_fixed) {
+		vcell_adj_fixed = val;
+	}
+	/* override soc with vcell adjusted value for reserve capacity */
+	if ((val < min_override) && override_enabled) {
+		val = (val + vcell_adj_fixed) / 2;
+	}
+#endif
 	if (val <= fmin_cap) {
 		chip->soc = 0;
 		return;
@@ -203,7 +244,81 @@ static void max17040_get_soc(struct i2c_client *client)
 	val = FIXED_MULT(TO_FIXED(100, 0), val - fmin_cap);
 	val = FIXED_DIV(val, TO_FIXED(100, 0) - fmin_cap);
 	chip->soc = clamp(FIXED_TO_INT(val), 0, 100);
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+	if (override_enabled) {
+		dev_info(&client->dev, "vcell_curr = %d vcell_adj = %d soc = %d\n", vcell_curr, vcell_adj, chip->soc);
+	}
+#endif
 }
+
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+static ssize_t vcell_adj_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%u\n", vcell_adj);
+}
+
+static ssize_t override_enabled_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+    return sprintf(buf, "%u\n", (override_enabled ? 1 : 0));
+}
+
+static ssize_t override_enabled_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+{
+    unsigned int data;
+
+    if(sscanf(buf, "%u\n", &data) == 1)
+	{
+	    pr_devel("%s: %u \n", __FUNCTION__, data);
+
+	    if (data == 1)
+		{
+		    pr_info("%s: Battery EMERGENCY Reserve enabled\n", __FUNCTION__);
+
+		    override_enabled = true;
+
+		}
+	    else if (data == 0)
+		{
+		    pr_info("%s: Battery EMERGENCY Reserve disabled\n", __FUNCTION__);
+
+		    override_enabled = false;
+		}
+	    else
+		{
+		    pr_info("%s: invalid input range %u\n", __FUNCTION__, data);
+		}
+	}
+    else
+	{
+	    pr_info("%s: invalid input\n", __FUNCTION__);
+	}
+
+    return size;
+}
+
+static DEVICE_ATTR(enabled, S_IRUGO | S_IWUGO, override_enabled_read, override_enabled_write);
+static DEVICE_ATTR(vcell_adj, S_IRUGO | S_IWUGO, vcell_adj_read, NULL);
+
+static int tuna_create_override_sysfs(void)
+{
+	int ret;
+	struct kobject *override_kobj;
+	override_kobj = kobject_create_and_add("battery_reserve", NULL);
+	if (unlikely(!override_kobj))
+		return -ENOMEM;
+
+	ret = (sysfs_create_file(override_kobj,
+			&dev_attr_enabled.attr) ||
+		sysfs_create_file(override_kobj,
+			&dev_attr_vcell_adj.attr));
+	if (unlikely(ret < 0)) {
+		pr_err("battery_reserve: sysfs_create_file failed: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+#endif
 
 static void max17040_get_version(struct i2c_client *client)
 {
@@ -652,6 +767,9 @@ static struct i2c_driver max17040_i2c_driver = {
 
 static int __init max17040_init(void)
 {
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+	tuna_create_override_sysfs();
+#endif
 	return i2c_add_driver(&max17040_i2c_driver);
 }
 module_init(max17040_init);

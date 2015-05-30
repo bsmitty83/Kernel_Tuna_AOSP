@@ -632,4 +632,15 @@ config TOUCH_WAKE
 	help
 	  Say Y here to enable Touch Wake
 
+config MAX17040_BATTERY_RESERVE
+	bool "Support for MAX17040 Battery Reserve"
+	default n
+	help
+	  This allows overriding the critical shutdown
+	  voltage of the battery via VOLTAGE_MIN_DESIGN.
+	  When SOC reaches MIN_OVERRIDE_SOC, SOC is
+	  calculated as a function of voltage, allowing
+	  for a lower critical battery voltage.
+	  "echo 1 > /sys/battery_reserve/enabled" to enable.
+
 endif # MISC_DEVICES
