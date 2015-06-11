@@ -354,6 +354,9 @@ static void max17040_get_status(struct i2c_client *client)
 	}
 
 	if (chip->pdata->charger_online()) {
+#ifdef CONFIG_MAX17040_BATTERY_RESERVE
+	        override_enabled = false;
+#endif
 		if (chip->pdata->charger_enable()) {
 			chip->status = POWER_SUPPLY_STATUS_CHARGING;
 		} else {
