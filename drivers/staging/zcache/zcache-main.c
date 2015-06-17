@@ -35,9 +35,8 @@
 #include "tmem.h"
 #include "zcache.h"
 #include "ramster.h"
-#include "cluster/tcp.h"
+#include "ramster/tcp.h"
 
-#include "xvmalloc.h"	/* temporary until change to zsmalloc */
 
 #define	RAMSTER_TESTING
 
@@ -954,7 +953,7 @@ out:
 /*
  * Communicate interface revision with userspace
  */
-#include "cluster/ramster_nodemanager.h"
+#include "ramster/nodemanager.h"
 static unsigned long ramster_interface_revision  = R2NM_API_VERSION;
 
 /*
