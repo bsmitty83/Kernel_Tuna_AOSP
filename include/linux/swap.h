@@ -317,9 +317,9 @@ extern int swap_writepage(struct page *page, struct writeback_control *wbc);
 extern int swap_set_page_dirty(struct page *page);
 #ifdef CONFIG_ZSWAP
 extern void end_swap_bio_write(struct bio *bio, int err);
+#endif
 extern int __swap_writepage(struct page *page, struct writeback_control *wbc,
 	void (*end_write_func)(struct bio *, int));
-#endif
 extern void end_swap_bio_read(struct bio *bio, int err);
 
 /* linux/mm/swap_state.c */
