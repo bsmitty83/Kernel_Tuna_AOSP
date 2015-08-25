@@ -357,6 +357,18 @@ struct sock {
 };
 
 /*
+ * SK_CAN_REUSE and SK_NO_REUSE on a socket mean that the socket is OK
+ * or not whether his port will be reused by someone else. SK_FORCE_REUSE
+ * on a socket means that the socket will reuse everybody else's port
+ * without looking at the other's sk_reuse value.
+ */
+
+#define SK_NO_REUSE	0
+#define SK_CAN_REUSE	1
+#define SK_FORCE_REUSE	2
+
+
+/*
  * Hashed lists helper routines
  */
 static inline struct sock *sk_entry(const struct hlist_node *node)

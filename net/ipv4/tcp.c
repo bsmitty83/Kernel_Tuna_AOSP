@@ -2281,11 +2281,6 @@ static int tcp_repair_options_est(struct tcp_sock *tp, char __user *optbuf, unsi
 			len -= sizeof(wscale);
 			break;
 		}
-		case TCPOPT_SACK_PERM:
-			tp->rx_opt.sack_ok |= TCP_SACK_SEEN;
-			if (sysctl_tcp_fack)
-				tcp_enable_fack(tp);
-			break;
 		case TCPOPT_TIMESTAMP:
 			tp->rx_opt.tstamp_ok = 1;
 			break;
