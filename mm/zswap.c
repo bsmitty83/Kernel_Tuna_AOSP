@@ -393,7 +393,7 @@ static void zswap_free_entry(struct zswap_tree *tree, struct zswap_entry *entry)
 enum zswap_get_swap_ret {
         ZSWAP_SWAPCACHE_NEW,
         ZSWAP_SWAPCACHE_EXIST,
-        ZSWAP_SWAPCACHE_NOMEM
+        ZSWAP_SWAPCACHE_FAIL,
 };
 
 /*
@@ -481,7 +481,7 @@ static int zswap_get_swap_cache_page(swp_entry_t entry,
         if (new_page)
                 page_cache_release(new_page);
         if (!found_page)
-                return ZSWAP_SWAPCACHE_NOMEM;
+                return ZSWAP_SWAPCACHE_FAIL;
         *retpage = found_page;
         return ZSWAP_SWAPCACHE_EXIST;
 }
@@ -535,11 +535,11 @@ static int zswap_writeback_entry(struct zbud_pool *pool, unsigned long handle)
 
         /* try to allocate swap cache page */
         switch (zswap_get_swap_cache_page(swpentry, &page)) {
-        case ZSWAP_SWAPCACHE_NOMEM: /* no memory */
+        case ZSWAP_SWAPCACHE_FAIL: /* no memory or invalidate happened */
                 ret = -ENOMEM;
                 goto fail;
 
-        case ZSWAP_SWAPCACHE_EXIST: /* page is unlocked */
+        case ZSWAP_SWAPCACHE_EXIST:
                 /* page is already in the swap cache, ignore for now */
                 page_cache_release(page);
                 ret = -EEXIST;
@@ -573,7 +573,12 @@ static int zswap_writeback_entry(struct zbud_pool *pool, unsigned long handle)
         spin_lock(&tree->lock);
 
         /* drop local reference */
-        zswap_entry_put(entry);
+        	refcount = zswap_entry_put(entry);
+	if (refcount <= 0) {
+		/* invalidate happened, consider writeback as success */
+		zswap_free_entry(tree, entry);
+		ret = 0;
+	}
         /* drop the initial reference from entry creation */
         refcount = zswap_entry_put(entry);
 
