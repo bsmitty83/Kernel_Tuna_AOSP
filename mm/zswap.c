@@ -415,9 +415,7 @@ static int zswap_get_swap_cache_page(swp_entry_t entry,
                                 struct page **retpage)
 {
         struct page *found_page, *new_page = NULL;
-
-#warning 	This needs to be uncommented in the future			  
-#warning       // struct address_space *swapper_space = &swapper_spaces[swp_type(entry)]; 
+//	struct address_space *swapper_space = &swapper_spaces[swp_type(entry)]; 
         int err;
 
         *retpage = NULL;
@@ -824,6 +822,11 @@ static void zswap_frontswap_invalidate_area(unsigned type)
         }
         tree->rbroot = RB_ROOT;
         spin_unlock(&tree->lock);
+
+	zbud_destroy_pool(tree->pool);
+	kfree(tree);
+	zswap_trees[type] = NULL;
+
 }
 
 static struct zbud_ops zswap_zbud_ops = {
