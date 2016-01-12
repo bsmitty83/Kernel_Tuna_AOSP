@@ -42,6 +42,9 @@
 #include <linux/notifier.h>
 #include <linux/swap.h>
 
+#define CREATE_TRACE_POINTS
+#include "lowmemorykiller.h"
+
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_DO_NOT_KILL_PROCESS
 #include <linux/string.h>
 #endif
@@ -391,6 +394,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	 *   if so kill it to prevent system slowdowns, hangs, etc. */
 	for (proc_type = KILLABLE_PROCESS; proc_type < MANAGED_PROCESS_TYPES; proc_type++) {
 		if (selected[proc_type]) {
+		long cache_size = other_file * (long)(PAGE_SIZE / 1024);
+		long cache_limit = minfree * (long)(PAGE_SIZE / 1024);
+		long free = other_free * (long)(PAGE_SIZE / 1024);
+		trace_lowmemory_kill(selected, cache_size, cache_limit, free);
 		lowmem_print(1, "Killing '%s' (%d), adj %d,\n" \
 				"   to free %ldkB on behalf of '%s' (%d) because\n" \
 				"   cache %ldkB is below limit %ldkB for oom_score_adj %d\n" \
@@ -399,10 +406,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     selected_oom_score_adj[proc_type],
                  selected_tasksize[proc_type] * (long)(PAGE_SIZE / 1024),
 			     current->comm, current->pid,
-			     other_file * (long)(PAGE_SIZE / 1024),
-			     minfree * (long)(PAGE_SIZE / 1024),
 			     min_score_adj,
-			     other_free * (long)(PAGE_SIZE / 1024));
+			     free);
 			lowmem_deathpending_timeout = jiffies + HZ;
 			send_sig(SIGKILL, selected[proc_type], 0);
 			set_tsk_thread_flag(selected[proc_type], TIF_MEMDIE);
